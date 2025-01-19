@@ -19,14 +19,14 @@ func ParseBencode(bencode string) (BencodeDict, error) {
 	}
 
 	i := 1
-	return parseDict(bencode, &i)
+	return consumeDict(bencode, &i)
 }
 
 /*
-* PLEASE NOTE ALL "parseXXX" FUNC WILL POSITION "pos" AFTER THE PARSED VALUE
+* PLEASE NOTE ALL "consumeXXX" FUNC WILL POSITION "pos" AFTER THE PARSED VALUE
  */
 
-func parseDict(bencode string, pos *int) (BencodeDict, error) {
+func consumeDict(bencode string, pos *int) (BencodeDict, error) {
 	dict := make(BencodeDict)
 
 	// check if it's an empty dict
@@ -36,7 +36,7 @@ func parseDict(bencode string, pos *int) (BencodeDict, error) {
 	}
 
 	for *pos < len(bencode)-1 && bencode[*pos] != 'e' {
-		key, err := parseString(bencode, pos)
+		key, err := consumeString(bencode, pos)
 		if err != nil {
 			return nil, err
 		}
@@ -44,28 +44,28 @@ func parseDict(bencode string, pos *int) (BencodeDict, error) {
 		var val any
 		switch bencode[*pos] {
 		case 'd':
-			d, err := parseDict(bencode, pos)
+			d, err := consumeDict(bencode, pos)
 			if err != nil {
 				return nil, err
 			}
 			val = d
 
 		case 'l':
-			l, err := parseList(bencode, pos)
+			l, err := consumeList(bencode, pos)
 			if err != nil {
 				return nil, err
 			}
 			val = l
 
 		case 'i':
-			num, err := parseInt(bencode, pos)
+			num, err := consumeInt(bencode, pos)
 			if err != nil {
 				return nil, err
 			}
 			val = num
 
 		default:
-			str, err := parseString(bencode, pos)
+			str, err := consumeString(bencode, pos)
 			if err != nil {
 				return nil, err
 			}
@@ -79,15 +79,15 @@ func parseDict(bencode string, pos *int) (BencodeDict, error) {
 	return dict, nil
 }
 
-func parseString(bencode string, pos *int) (string, error) {
+func consumeString(bencode string, pos *int) (string, error) {
 	sep := strings.IndexByte(bencode[*pos:], ':')
 	if sep == -1 {
 		return "", errors.New(fmt.Sprintf("Expected a separator around index %d", *pos))
 	}
 
 	strLen, err := strconv.Atoi(bencode[*pos:sep])
-	if err != nil {
-		return "", errors.New(fmt.Sprintf("Expected str len to be a number got %s instead", bencode[*pos:sep]))
+	if err != nil || strLen <= 0 {
+		return "", errors.New(fmt.Sprintf("Expected str len to be a positive number got %s instead", bencode[*pos:sep]))
 	}
 
 	str := bencode[sep+1 : sep+1+strLen]
@@ -95,7 +95,7 @@ func parseString(bencode string, pos *int) (string, error) {
 	return str, nil
 }
 
-func parseInt(bencode string, pos *int) (int, error) {
+func consumeInt(bencode string, pos *int) (int, error) {
 	intEnding := strings.IndexByte(bencode[*pos:], 'e')
 	if intEnding == -1 {
 		return 0, errors.New(fmt.Sprintf("Invalid integer found at %d", *pos))
@@ -111,7 +111,7 @@ func parseInt(bencode string, pos *int) (int, error) {
 
 }
 
-func parseList(bencode string, pos *int) ([]any, error) {
+func consumeList(bencode string, pos *int) ([]any, error) {
 	arr := make([]any, 0)
 
 	*pos++ // skip the 'l'
@@ -119,28 +119,28 @@ func parseList(bencode string, pos *int) ([]any, error) {
 		var val any
 		switch bencode[*pos] {
 		case 'i':
-			n, err := parseInt(bencode, pos)
+			n, err := consumeInt(bencode, pos)
 			if err != nil {
 				return nil, err
 			}
 			val = n
 
 		case 'l':
-			l, err := parseList(bencode, pos)
+			l, err := consumeList(bencode, pos)
 			if err != nil {
 				return nil, err
 			}
 			val = l
 
 		case 'd':
-			d, err := parseDict(bencode, pos)
+			d, err := consumeDict(bencode, pos)
 			if err != nil {
 				return nil, err
 			}
 			val = d
 
 		default:
-			s, err := parseString(bencode, pos)
+			s, err := consumeString(bencode, pos)
 			if err != nil {
 				return nil, err
 			}
@@ -154,4 +154,4 @@ func parseList(bencode string, pos *int) ([]any, error) {
 	return arr, nil
 }
 
-/* END OF parseXXX functions */
+/* END OF consumeXXX functions */
