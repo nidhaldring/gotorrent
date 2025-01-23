@@ -27,6 +27,10 @@ func ParseBencode(bencode string) (BencodeDict, error) {
  */
 
 func consumeDict(bencode string, pos *int) (BencodeDict, error) {
+	if *pos >= len(bencode) {
+		return nil, errors.New(fmt.Sprintf("Position='%d' is greater than bencode length='%d'", *pos, len(bencode)))
+	}
+
 	dict := make(BencodeDict)
 
 	// check if it's an empty dict
@@ -79,43 +83,14 @@ func consumeDict(bencode string, pos *int) (BencodeDict, error) {
 	return dict, nil
 }
 
-func consumeString(bencode string, pos *int) (string, error) {
-	sep := strings.IndexByte(bencode[*pos:], ':')
-	if sep == -1 {
-		return "", errors.New(fmt.Sprintf("Expected a separator around index %d", *pos))
-	}
-
-	strLen, err := strconv.Atoi(bencode[*pos:sep])
-	if err != nil || strLen <= 0 {
-		return "", errors.New(fmt.Sprintf("Expected str len to be a positive number got %s instead", bencode[*pos:sep]))
-	}
-
-	str := bencode[sep+1 : sep+1+strLen]
-	*pos += (sep - *pos) + strLen + 1
-	return str, nil
-}
-
-func consumeInt(bencode string, pos *int) (int, error) {
-	intEnding := strings.IndexByte(bencode[*pos:], 'e')
-	if intEnding == -1 {
-		return 0, errors.New(fmt.Sprintf("Invalid integer found at %d", *pos))
-	}
-
-	num, err := strconv.Atoi(bencode[*pos+1 : intEnding])
-	if err != nil {
-		return 0, errors.New(fmt.Sprintf("Invalid integer found at %d", *pos))
-	}
-
-	*pos = intEnding + 1
-	return num, nil
-
-}
-
 func consumeList(bencode string, pos *int) ([]any, error) {
-	arr := make([]any, 0)
+	if *pos >= len(bencode) {
+		return nil, errors.New(fmt.Sprintf("Position='%d' is greater than bencode length='%d'", *pos, len(bencode)))
+	}
 
+	arr := make([]any, 0)
 	*pos++ // skip the 'l'
-	for bencode[*pos] != 'e' {
+	for *pos < len(bencode) && bencode[*pos] != 'e' {
 		var val any
 		switch bencode[*pos] {
 		case 'i':
@@ -151,7 +126,57 @@ func consumeList(bencode string, pos *int) ([]any, error) {
 		arr = append(arr, val)
 	}
 
-	return arr, nil
+	if *pos < len(bencode) && bencode[*pos] == 'e' {
+		*pos += 1
+		return arr, nil
+	}
+
+	return nil, errors.New(fmt.Sprintf("Expected list to end with 'e' at position '%d'", *pos))
+}
+
+func consumeString(bencode string, pos *int) (string, error) {
+	if *pos >= len(bencode) {
+		return "", errors.New(fmt.Sprintf("Position='%d' is greater than bencode length='%d'", *pos, len(bencode)))
+	}
+
+	sep := strings.IndexByte(bencode[*pos:], ':')
+	if sep == -1 {
+		return "", errors.New(fmt.Sprintf("Expected a separator around index %d", *pos))
+	}
+	sep += *pos
+
+	strLen, err := strconv.Atoi(bencode[*pos:sep])
+	if err != nil || strLen <= 0 {
+		return "", errors.New(fmt.Sprintf("Expected str len to be a positive number got %s instead at pos %d", bencode[*pos:sep], *pos))
+	}
+
+	str := bencode[sep+1 : sep+1+strLen]
+	*pos += (sep - *pos) + strLen + 1
+	return str, nil
+}
+
+func consumeInt(bencode string, pos *int) (int, error) {
+	if *pos >= len(bencode) {
+		return 0, errors.New(fmt.Sprintf("Position='%d' is greater than bencode length='%d'", *pos, len(bencode)))
+	}
+
+	if bencode[*pos] != 'i' {
+		return 0, errors.New(fmt.Sprintf("Expected start of int got %s at index %d instead", string(bencode[*pos]), *pos))
+	}
+
+	intEnding := strings.IndexByte(bencode[*pos:], 'e')
+	if intEnding == -1 {
+		return 0, errors.New(fmt.Sprintf("Int with no delimiter found at %d", *pos))
+	}
+	intEnding += *pos
+
+	num, err := strconv.Atoi(bencode[*pos+1 : intEnding])
+	if err != nil {
+		return 0, errors.New(fmt.Sprintf("Cannot convert int at %d got '%s' from (%d, %d) instead", *pos, bencode[*pos+1:intEnding], *pos+1, intEnding))
+	}
+
+	*pos = intEnding + 1
+	return num, nil
 }
 
 /* END OF consumeXXX functions */

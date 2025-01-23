@@ -5,25 +5,101 @@ import (
 	"testing"
 )
 
-func TestParseBenCode(t *testing.T) {
+// func TestParseBenCode(t *testing.T) {
+// 	tests := []struct {
+// 		bencode      string
+// 		expectedDict BencodeDict
+// 	}{
+// 		{
+// 			bencode:      "de",
+// 			expectedDict: make(BencodeDict),
+// 		},
+// 	}
+
+// 	for _, test := range tests {
+// 		res, err := ParseBencode(test.bencode)
+// 		if err != nil {
+// 			t.Errorf("failed to parse %s got this error instead %s\n", test.bencode, err)
+// 		}
+
+// 		if !reflect.DeepEqual(res, test.expectedDict) {
+// 			t.Errorf("failed to parse %s expected %+v got %+v\n", test.bencode, test.expectedDict, res)
+// 		}
+// 	}
+// }
+
+func TestConsumeList(t *testing.T) {
 	tests := []struct {
-		bencode      string
-		expectedDict BencodeDict
+		input       string
+		expected    []any
+		expectError bool
 	}{
+		// should work as expected for empty list
 		{
-			bencode:      "de",
-			expectedDict: make(BencodeDict),
+			input:       "le",
+			expected:    []any{},
+			expectError: false,
+		},
+		// should work as expected for single item list
+		{
+			input:       "li5ee",
+			expected:    []any{5},
+			expectError: false,
+		},
+		// should work as expected for list of diff items
+		{
+			input:       "li5ei32e1:he",
+			expected:    []any{5, 32, "h"},
+			expectError: false,
+		},
+		// should work as expected for nested lists
+		{
+			input:       "li3el1:hee",
+			expected:    []any{3, []any{"h"}},
+			expectError: false,
+		},
+		{
+			input:       "lli5ee1:se",
+			expected:    []any{[]any{5}, "s"},
+			expectError: false,
+		},
+		// should throw if an item in the list is wrong
+		{
+			input:       "l1:hhhe",
+			expected:    nil,
+			expectError: true,
+		},
+		{
+			input:       "l1:hhhe",
+			expected:    nil,
+			expectError: true,
+		},
+		{
+			input:       "l",
+			expected:    nil,
+			expectError: true,
+		},
+		{
+			input:       "e",
+			expected:    nil,
+			expectError: true,
 		},
 	}
 
 	for _, test := range tests {
-		res, err := ParseBencode(test.bencode)
-		if err != nil {
-			t.Errorf("failed to parse %s got this error instead %s\n", test.bencode, err)
+		i := 0
+		res, err := consumeList(test.input, &i)
+
+		if test.expectError && err == nil {
+			t.Errorf("expected an error but got '%s' as input %d", test.input, i)
 		}
 
-		if !reflect.DeepEqual(res, test.expectedDict) {
-			t.Errorf("failed to parse %s expected %+v got %+v\n", test.bencode, test.expectedDict, res)
+		if !test.expectError && err != nil {
+			t.Errorf("was not expecting an error got '%s' instead", err)
+		}
+
+		if !reflect.DeepEqual(res, test.expected) {
+			t.Errorf("inputted '%s', expected ( %+v ) got ( %+v )", test.input, test.expected, res)
 		}
 	}
 }
@@ -34,11 +110,13 @@ func TestConsumeInt(t *testing.T) {
 		expected    int
 		expectError bool
 	}{
+		// should work as expected for single digits number
 		{
 			input:       "i0e",
 			expected:    0,
 			expectError: false,
 		},
+		// should work as expected for multiple digits number
 		{
 			input:       "i555555e",
 			expected:    555555,
@@ -54,9 +132,22 @@ func TestConsumeInt(t *testing.T) {
 			input:       "istringe",
 			expectError: true,
 		},
-		// should return error if it's not an empty int
+		// should return error if it's an empty int
 		{
 			input:       "ie",
+			expectError: true,
+		},
+		// should return error if it's invalid int
+		{
+			input:       "5",
+			expectError: true,
+		},
+		{
+			input:       "i",
+			expectError: true,
+		},
+		{
+			input:       "e",
 			expectError: true,
 		},
 	}
@@ -66,15 +157,15 @@ func TestConsumeInt(t *testing.T) {
 		res, err := consumeInt(test.input, &i)
 
 		if test.expectError && err == nil {
-			t.Errorf("expected an error but got ( %s ) as input", test.input)
+			t.Errorf("expected an error but got '%s' as input", test.input)
 		}
 
 		if !test.expectError && err != nil {
-			t.Errorf("was not expecting an error got ( %s ) instead", err)
+			t.Errorf("was not expecting an error got '%s' instead", err)
 		}
 
 		if res != test.expected {
-			t.Errorf("inputted ( %s ), expected ( %d ) got ( %d )", test.input, test.expected, res)
+			t.Errorf("inputted '%s', expected '%d' got '%d'", test.input, test.expected, res)
 		}
 	}
 }
@@ -106,6 +197,19 @@ func TestConsumeString(t *testing.T) {
 			input:       "0:tt",
 			expectError: true,
 		},
+		// should return an error if str is invalid
+		{
+			input:       "0",
+			expectError: true,
+		},
+		{
+			input:       ":ttt",
+			expectError: true,
+		},
+		{
+			input:       "1f",
+			expectError: true,
+		},
 	}
 
 	for _, test := range tests {
@@ -113,15 +217,15 @@ func TestConsumeString(t *testing.T) {
 		res, err := consumeString(test.input, &i)
 
 		if test.expectError && err == nil {
-			t.Errorf("expected an error but got ( %s ) as input", test.input)
+			t.Errorf("expected an error but got '%s' as input", test.input)
 		}
 
 		if !test.expectError && err != nil {
-			t.Errorf("was not expecting an error got ( %s ) instead", err)
+			t.Errorf("was not expecting an error got '%s' instead", err)
 		}
 
 		if res != test.expected {
-			t.Errorf("inputted ( %s ), expected ( %s ) got ( %s )", test.input, test.expected, res)
+			t.Errorf("inputted '%s', expected '%s' got '%s'", test.input, test.expected, res)
 		}
 	}
 }
