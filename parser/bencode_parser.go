@@ -14,10 +14,6 @@ func ParseBencode(bencode string) (BencodeDict, error) {
 		return nil, errors.New("Expected a bencode string got an empty string instead")
 	}
 
-	if bencode[0] != 'd' && bencode[len(bencode)-1] != 'e' {
-		return nil, errors.New(fmt.Sprintf("bencode should start with 'd' and ends with 'e' got beg=%c & end=%c", bencode[0], bencode[len(bencode)-1]))
-	}
-
 	i := 1
 	return consumeDict(bencode, &i)
 }
