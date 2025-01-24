@@ -33,13 +33,8 @@ func consumeDict(bencode string, pos *int) (BencodeDict, error) {
 
 	dict := make(BencodeDict)
 
-	// check if it's an empty dict
-	if *pos+1 < len(bencode)-1 && bencode[*pos+1] == 'e' {
-		*pos++
-		return dict, nil
-	}
-
-	for *pos < len(bencode)-1 && bencode[*pos] != 'e' {
+	*pos++ // skip the d
+	for *pos < len(bencode) && bencode[*pos] != 'e' {
 		key, err := consumeString(bencode, pos)
 		if err != nil {
 			return nil, err
@@ -80,7 +75,12 @@ func consumeDict(bencode string, pos *int) (BencodeDict, error) {
 		dict[key] = val
 	}
 
-	return dict, nil
+	if *pos < len(bencode) && bencode[*pos] == 'e' {
+		*pos += 1
+		return dict, nil
+	}
+
+	return nil, errors.New(fmt.Sprintf("Expected dict to end with 'e' at position '%d'", *pos))
 }
 
 func consumeList(bencode string, pos *int) ([]any, error) {

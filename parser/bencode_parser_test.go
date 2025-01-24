@@ -28,6 +28,76 @@ import (
 // 	}
 // }
 
+func TestConsumeDict(t *testing.T) {
+	tests := []struct {
+		input       string
+		expected    BencodeDict
+		expectError bool
+	}{
+		// should work as expected for empty dict
+		{
+			input:       "de",
+			expected:    BencodeDict{},
+			expectError: false,
+		},
+		// should work as expected for single item dict
+		{
+			input:       "d1:ki5ee",
+			expected:    BencodeDict{"k": 5},
+			expectError: false,
+		},
+		// should work as expected for list of diff items
+		{
+			input:       "d1:ki5e1:s1:se",
+			expected:    BencodeDict{"k": 5, "s": "s"},
+			expectError: false,
+		},
+		// should work as expected for nested dicts
+		{
+			input:       "d1:dd1:s1:see",
+			expected:    BencodeDict{"d": BencodeDict{"s": "s"}},
+			expectError: false,
+		},
+		// should return an error if key is not string
+		{
+			input:       "di5ei5ee",
+			expected:    nil,
+			expectError: true,
+		},
+		{
+			input:       "dl1:hei5ee",
+			expected:    nil,
+			expectError: true,
+		},
+		{
+			input:       "ddei5ee",
+			expected:    nil,
+			expectError: true,
+		},
+	}
+
+	for _, test := range tests {
+		i := 0
+		res, err := consumeDict(test.input, &i)
+
+		if test.expectError && err == nil {
+			t.Errorf("expected an error but got '%s' as input %d", test.input, i)
+		}
+
+		if !test.expectError {
+			if err != nil {
+				t.Errorf("was not expecting an error got '%s' instead", err)
+			}
+
+			if !reflect.DeepEqual(res, test.expected) {
+				t.Errorf("inputted '%s', expected ( %+v ) got ( %+v )", test.input, test.expected, res)
+			}
+		}
+
+	}
+}
+
+// @TODO: add test for when list has a dict
 func TestConsumeList(t *testing.T) {
 	tests := []struct {
 		input       string
