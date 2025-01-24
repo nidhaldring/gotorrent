@@ -97,7 +97,6 @@ func TestConsumeDict(t *testing.T) {
 	}
 }
 
-// @TODO: add test for when list has a dict
 func TestConsumeList(t *testing.T) {
 	tests := []struct {
 		input       string
