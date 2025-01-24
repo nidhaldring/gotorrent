@@ -5,28 +5,96 @@ import (
 	"testing"
 )
 
-// func TestParseBenCode(t *testing.T) {
-// 	tests := []struct {
-// 		bencode      string
-// 		expectedDict BencodeDict
-// 	}{
-// 		{
-// 			bencode:      "de",
-// 			expectedDict: make(BencodeDict),
-// 		},
-// 	}
+func TestParseBenCode(t *testing.T) {
+	// ParseBencode is a thin wrapper around consumeDict, basically no need to further test it at least for now :)
+	// so i'm using same tests with another test to check if string is empty or not
+  // @TODO: add more tests here, cases where there's an invalid int, str, list etc...
+  // but for now i think this is enough
 
-// 	for _, test := range tests {
-// 		res, err := ParseBencode(test.bencode)
-// 		if err != nil {
-// 			t.Errorf("failed to parse %s got this error instead %s\n", test.bencode, err)
-// 		}
+	tests := []struct {
+		input       string
+		expected    BencodeDict
+		expectError bool
+	}{
+		// should work as expected for empty dict
+		{
+			input:       "de",
+			expected:    BencodeDict{},
+			expectError: false,
+		},
+		// should work as expected for single item dict
+		{
+			input:       "d1:ki5ee",
+			expected:    BencodeDict{"k": 5},
+			expectError: false,
+		},
+		// should work as expected for list of diff items
+		{
+			input:       "d1:ki5e1:s1:se",
+			expected:    BencodeDict{"k": 5, "s": "s"},
+			expectError: false,
+		},
+		// should work as expected for nested dicts
+		{
+			input:       "d1:dd1:s1:see",
+			expected:    BencodeDict{"d": BencodeDict{"s": "s"}},
+			expectError: false,
+		},
+		// should return an error if it's not a dict start
+		{
+			input:       "ve",
+			expected:    nil,
+			expectError: true,
+		},
+		// should return an error if dict does not end properly
+		{
+			input:       "d1:h1:hE",
+			expected:    nil,
+			expectError: true,
+		},
+		// should return an error if key is not string
+		{
+			input:       "di5ei5ee",
+			expected:    nil,
+			expectError: true,
+		},
+		{
+			input:       "dl1:hei5ee",
+			expected:    nil,
+			expectError: true,
+		},
+		{
+			input:       "ddei5ee",
+			expected:    nil,
+			expectError: true,
+		},
+		// should return an error if input is empty
+		{
+			input:       "",
+			expected:    nil,
+			expectError: true,
+		},
+	}
 
-// 		if !reflect.DeepEqual(res, test.expectedDict) {
-// 			t.Errorf("failed to parse %s expected %+v got %+v\n", test.bencode, test.expectedDict, res)
-// 		}
-// 	}
-// }
+	for _, test := range tests {
+		res, err := ParseBencode(test.input)
+
+		if test.expectError && err == nil {
+			t.Errorf("expected an error but got '%s' as input", test.input)
+		}
+
+		if !test.expectError {
+			if err != nil {
+				t.Errorf("was not expecting an error got '%s' instead", err)
+			}
+
+			if !reflect.DeepEqual(res, test.expected) {
+				t.Errorf("inputted '%s', expected ( %+v ) got ( %+v )", test.input, test.expected, res)
+			}
+		}
+
+	}
+}
 
 func TestConsumeDict(t *testing.T) {
 	tests := []struct {
@@ -66,7 +134,7 @@ func TestConsumeDict(t *testing.T) {
 		},
 		// should return an error if dict does not end properly
 		{
-      input:       "d1:h1:hE",
+			input:       "d1:h1:hE",
 			expected:    nil,
 			expectError: true,
 		},
