@@ -133,7 +133,12 @@ func TestConsumeList(t *testing.T) {
 			expected:    []any{[]any{5}, "s"},
 			expectError: false,
 		},
-		// should throw if an item in the list is wrong
+		{
+			input:       "lded1:h1:hee",
+			expected:    []any{BencodeDict{}, BencodeDict{"h": "h"}},
+			expectError: false,
+		},
+		// should return an error if an item in the list is wrong
 		{
 			input:       "l1:hhhe",
 			expected:    nil,
