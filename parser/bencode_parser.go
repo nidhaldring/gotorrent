@@ -31,6 +31,10 @@ func consumeDict(bencode string, pos *int) (BencodeDict, error) {
 		return nil, errors.New(fmt.Sprintf("Position='%d' is greater than bencode length='%d'", *pos, len(bencode)))
 	}
 
+	if bencode[*pos] != 'd' {
+		return nil, errors.New(fmt.Sprintf("Expected a dict start at pos %d got %s instead", *pos, string(bencode[*pos])))
+	}
+
 	dict := make(BencodeDict)
 
 	*pos++ // skip the d
@@ -86,6 +90,10 @@ func consumeDict(bencode string, pos *int) (BencodeDict, error) {
 func consumeList(bencode string, pos *int) ([]any, error) {
 	if *pos >= len(bencode) {
 		return nil, errors.New(fmt.Sprintf("Position='%d' is greater than bencode length='%d'", *pos, len(bencode)))
+	}
+
+	if bencode[*pos] != 'l' {
+		return nil, errors.New(fmt.Sprintf("Expected a list start at pos %d got %s instead", *pos, string(bencode[*pos])))
 	}
 
 	arr := make([]any, 0)

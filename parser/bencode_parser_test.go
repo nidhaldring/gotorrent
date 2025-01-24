@@ -58,6 +58,18 @@ func TestConsumeDict(t *testing.T) {
 			expected:    BencodeDict{"d": BencodeDict{"s": "s"}},
 			expectError: false,
 		},
+		// should return an error if it's not a dict start
+		{
+			input:       "ve",
+			expected:    nil,
+			expectError: true,
+		},
+		// should return an error if dict does not end properly
+		{
+      input:       "d1:h1:hE",
+			expected:    nil,
+			expectError: true,
+		},
 		// should return an error if key is not string
 		{
 			input:       "di5ei5ee",
