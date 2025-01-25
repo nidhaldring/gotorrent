@@ -13,11 +13,15 @@ func main() {
 	// 	os.Exit(0)
 	// }
 
-	// result, err := parseBencode(string(file))
-	// if err != nil {
-	// 	fmt.Println(err)
-	// 	os.Exit(1)
-	// }
+	// // result, err := parser.ParseBencode(string(file))
+	// // if err != nil {
+	// // 	fmt.Println(err)
+	// // 	os.Exit(1)
+	// // }
 
-	// fmt.Println(result)
+	// // fmt.Println(result["announce"])
+
+	// // for k := range result {
+	// // 	fmt.Println(k)
+	// // }
 }

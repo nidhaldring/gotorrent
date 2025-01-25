@@ -1,98 +1,92 @@
 package parser
 
 import (
+	"os"
 	"reflect"
 	"testing"
 )
 
 func TestParseBenCode(t *testing.T) {
-	// ParseBencode is a thin wrapper around consumeDict, basically no need to further test it at least for now :)
-	// so i'm using same tests with another test to check if string is empty or not
-  // @TODO: add more tests here, cases where there's an invalid int, str, list etc...
-  // but for now i think this is enough
-
-	tests := []struct {
-		input       string
-		expected    BencodeDict
-		expectError bool
-	}{
-		// should work as expected for empty dict
-		{
-			input:       "de",
-			expected:    BencodeDict{},
-			expectError: false,
+	// @TODO: write better tests
+	expectedResult := &TorrentFile{
+		Announce: "udp://tracker.opentrackr.org:1337/announce",
+		AnnounceList: []any{
+			[]any{
+				"udp://tracker.opentrackr.org:1337/announce",
+			},
+			[]any{
+				"udp://opentracker.io:6969/announce",
+			},
+			[]any{
+				"udp://tracker.dler.org:6969/announce",
+			},
+			[]any{
+				"udp://open.publictracker.xyz:6969/announce",
+			},
+			[]any{
+				"udp://tracker.dler.com:6969/announce",
+			},
+			[]any{
+				"udp://opentracker.io:6969/announce",
+			},
+			[]any{
+				"udp://tracker.opentrackr.org:1337/",
+			},
+			[]any{
+				"http://tracker.bt4g.com:2095/announce",
+			},
+			[]any{
+				"udp://amigacity.xyz:6969/announce",
+			},
+			[]any{
+				"udp://tracker.torrent.eu.org:451/announce",
+			},
+			[]any{
+				"udp://retracker.lanta.me:2710/announce",
+			},
+			[]any{
+				"udp://tracker.0x7c0.com:6969/announce",
+			},
+			[]any{
+				"udp://ttk2.nbaonlineservice.com:6969/announce",
+			},
+			[]any{
+				"udp://tracker.torrent.eu.org:451/announce",
+			},
+			[]any{
+				"udp://seedpeer.net:6969/announce",
+			},
 		},
-		// should work as expected for single item dict
-		{
-			input:       "d1:ki5ee",
-			expected:    BencodeDict{"k": 5},
-			expectError: false,
-		},
-		// should work as expected for list of diff items
-		{
-			input:       "d1:ki5e1:s1:se",
-			expected:    BencodeDict{"k": 5, "s": "s"},
-			expectError: false,
-		},
-		// should work as expected for nested dicts
-		{
-			input:       "d1:dd1:s1:see",
-			expected:    BencodeDict{"d": BencodeDict{"s": "s"}},
-			expectError: false,
-		},
-		// should return an error if it's not a dict start
-		{
-			input:       "ve",
-			expected:    nil,
-			expectError: true,
-		},
-		// should return an error if dict does not end properly
-		{
-			input:       "d1:h1:hE",
-			expected:    nil,
-			expectError: true,
-		},
-		// should return an error if key is not string
-		{
-			input:       "di5ei5ee",
-			expected:    nil,
-			expectError: true,
-		},
-		{
-			input:       "dl1:hei5ee",
-			expected:    nil,
-			expectError: true,
-		},
-		{
-			input:       "ddei5ee",
-			expected:    nil,
-			expectError: true,
-		},
-		// should return an error if input is empty
-		{
-			input:       "",
-			expected:    nil,
-			expectError: true,
+		CreatedBy:    "uTorrent/3.6",
+		CreationDate: 1737709167,
+		Encoding:     "UTF-8",
+		Info: TorrentInfo{
+			Length:      1315136554,
+			Name:        "Star Trek  Section 31 2025 1080p WEB-DL HEVC x265 5.1 BONE.mkv",
+			PieceLength: 2097152,
+      // @TODO: enable Pieces
+      // Pieces:``,
 		},
 	}
+	testFilePath := "./files/test.torrent"
 
-	for _, test := range tests {
-		res, err := ParseBencode(test.input)
+	b, err := os.ReadFile(testFilePath)
+	if err != nil {
+		t.Fatalf("Test file %s was not found!", testFilePath)
+	}
 
-		if test.expectError && err == nil {
-			t.Errorf("expected an error but got '%s' as input", test.input)
-		}
+	content := string(b)
+	parsed, err := ParseBencode(content)
+	if err != nil {
+		t.Fatalf("Expected ParseBencode to return result got error %s instead", err)
+	}
 
-		if !test.expectError {
-			if err != nil {
-				t.Errorf("was not expecting an error got '%s' instead", err)
-			}
+	if parsed == nil {
+		t.Fatal("Expectesd result to be different to nil")
+	}
 
-			if !reflect.DeepEqual(res, test.expected) {
-				t.Errorf("inputted '%s', expected ( %+v ) got ( %+v )", test.input, test.expected, res)
-			}
-		}
-
+	if parsed != nil && !reflect.DeepEqual(expectedResult, parsed) {
+		t.Fatalf("Expected results to be equal inputted file %s represented as %+v got %+v instead", testFilePath, *expectedResult, *parsed)
 	}
 }
 

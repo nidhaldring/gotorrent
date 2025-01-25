@@ -7,15 +7,100 @@ import (
 	"strings"
 )
 
+type TorrentFile struct {
+	Announce     string
+	AnnounceList []any
+	CreatedBy    string
+	CreationDate int
+	Encoding     string
+	Info         TorrentInfo
+}
+
+type TorrentInfo struct {
+	Length      int
+	Name        string
+	PieceLength int
+	Pieces      string
+}
+
 type BencodeDict map[string]any
 
-func ParseBencode(bencode string) (BencodeDict, error) {
+func ParseBencode(bencode string) (*TorrentFile, error) {
 	if len(bencode) == 0 {
 		return nil, errors.New("Expected a bencode string got an empty string instead")
 	}
 
-	i := 1
-	return consumeDict(bencode, &i)
+	i := 0
+	dict, err := consumeDict(bencode, &i)
+	if err != nil {
+		return nil, err
+	}
+
+	announce, ok := dict["announce"].(string)
+	if !ok {
+		return nil, errors.New("Announce is not string ")
+	}
+
+	announceList, ok := dict["announce-list"].([]any)
+	if !ok {
+		return nil, errors.New("Announce list is not an array of arrays of string ")
+	}
+
+	createdBy, ok := dict["created by"].(string)
+	if !ok {
+		return nil, errors.New("Announce is not string ")
+	}
+
+	creationDate, ok := dict["creation date"].(int)
+	if !ok {
+		return nil, errors.New("Announce is not string ")
+	}
+
+	encoding, ok := dict["encoding"].(string)
+	if !ok {
+		return nil, errors.New("Announce is not string ")
+	}
+
+	info, ok := dict["info"].(BencodeDict)
+	if !ok {
+		return nil, errors.New("Info is not a dict")
+	}
+
+	length, ok := info["length"].(int)
+	if !ok {
+		return nil, errors.New("Info.length is not an int")
+	}
+
+	name, ok := info["name"].(string)
+	if !ok {
+		return nil, errors.New("Info.name is not a string")
+	}
+
+	pieceLength, ok := info["piece length"].(int)
+	if !ok {
+		return nil, errors.New("Info.'piece length' is not an int")
+	}
+
+  // @TODO: enable Pieces
+	// pieces, ok := info["pieces"].(string)
+	// if !ok {
+	// 	return nil, errors.New("Info.pieces is not an array of bytes")
+	// }
+
+	return &TorrentFile{
+		Announce:     announce,
+		AnnounceList: announceList,
+		CreatedBy:    createdBy,
+		CreationDate: creationDate,
+		Encoding:     encoding,
+		Info: TorrentInfo{
+			Length:      length,
+			Name:        name,
+			PieceLength: pieceLength,
+      // @TODO: enable Pieces
+			// Pieces:      pieces,
+		},
+	}, nil
 }
 
 /*
