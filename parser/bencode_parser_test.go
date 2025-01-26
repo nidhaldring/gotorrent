@@ -82,7 +82,7 @@ func TestParseBenCode(t *testing.T) {
 	}
 
 	if parsed == nil {
-		t.Fatal("Expectesd result to be different to nil")
+		t.Fatal("Expected result to be different to nil")
 	}
 
 	if parsed != nil && !reflect.DeepEqual(expectedResult, parsed) {
