@@ -93,31 +93,31 @@ func TestParseBenCode(t *testing.T) {
 func TestConsumeDict(t *testing.T) {
 	tests := []struct {
 		input       string
-		expected    bencodeDict
+		expected    BencodeDict
 		expectError bool
 	}{
 		// should work as expected for empty dict
 		{
 			input:       "de",
-			expected:    bencodeDict{},
+			expected:    BencodeDict{},
 			expectError: false,
 		},
 		// should work as expected for single item dict
 		{
 			input:       "d1:ki5ee",
-			expected:    bencodeDict{"k": 5},
+			expected:    BencodeDict{"k": 5},
 			expectError: false,
 		},
 		// should work as expected for list of diff items
 		{
 			input:       "d1:ki5e1:s1:se",
-			expected:    bencodeDict{"k": 5, "s": "s"},
+			expected:    BencodeDict{"k": 5, "s": "s"},
 			expectError: false,
 		},
 		// should work as expected for nested dicts
 		{
 			input:       "d1:dd1:s1:see",
-			expected:    bencodeDict{"d": bencodeDict{"s": "s"}},
+			expected:    BencodeDict{"d": BencodeDict{"s": "s"}},
 			expectError: false,
 		},
 		// should return an error if it's not a dict start
@@ -208,7 +208,7 @@ func TestConsumeList(t *testing.T) {
 		},
 		{
 			input:       "lded1:h1:hee",
-			expected:    []any{bencodeDict{}, bencodeDict{"h": "h"}},
+			expected:    []any{BencodeDict{}, BencodeDict{"h": "h"}},
 			expectError: false,
 		},
 		// should return an error if an item in the list is wrong

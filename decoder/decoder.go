@@ -23,7 +23,7 @@ type TorrentInfo struct {
 	Pieces      string
 }
 
-type bencodeDict map[string]any
+type BencodeDict map[string]any
 
 func DecodeTorrentFile(bencode string) (*TorrentFile, error) {
 	if len(bencode) == 0 {
@@ -61,7 +61,7 @@ func DecodeTorrentFile(bencode string) (*TorrentFile, error) {
 		return nil, errors.New("Announce is not string ")
 	}
 
-	info, ok := dict["info"].(bencodeDict)
+	info, ok := dict["info"].(BencodeDict)
 	if !ok {
 		return nil, errors.New("Info is not a dict")
 	}
@@ -107,7 +107,7 @@ func DecodeTorrentFile(bencode string) (*TorrentFile, error) {
 * PLEASE NOTE ALL "consumeXXX" FUNC WILL POSITION "pos" AFTER THE PARSED VALUE
  */
 
-func consumeDict(bencode string, pos *int) (bencodeDict, error) {
+func consumeDict(bencode string, pos *int) (BencodeDict, error) {
 	if *pos >= len(bencode) {
 		return nil, errors.New(fmt.Sprintf("Position='%d' is greater than bencode length='%d'", *pos, len(bencode)))
 	}
@@ -116,7 +116,7 @@ func consumeDict(bencode string, pos *int) (bencodeDict, error) {
 		return nil, errors.New(fmt.Sprintf("Expected a dict start at pos %d got %s instead", *pos, string(bencode[*pos])))
 	}
 
-	dict := make(bencodeDict)
+	dict := make(BencodeDict)
 
 	*pos++ // skip the d
 	for *pos < len(bencode) && bencode[*pos] != 'e' {
