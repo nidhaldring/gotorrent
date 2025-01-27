@@ -6,6 +6,10 @@ import (
 )
 
 func TestEncodeDict(t *testing.T) {
+	// maps in go are not ordered, meaning iterating through the keys and encoding them
+	// will not produce the same result upon different re-runs
+	// thus the test here a quite simple
+	// @TODO: maybe think of a way to test with an unordered dict?
 	tests := []struct {
 		input    decoder.BencodeDict
 		expected string
@@ -14,20 +18,22 @@ func TestEncodeDict(t *testing.T) {
 			input:    decoder.BencodeDict{},
 			expected: "de",
 		},
-    // @TODO: iterating through map keys is not determistic meaning that key order isnot guaranteed
-    // thus the encoded dict is not always the same
-		// {
-		// 	input:    decoder.BencodeDict{"h": 1, "vv": "v"},
-		// 	expected: "d1:hi1e2:vv1:ve",
-		// },
-		// {
-		// 	input:    decoder.BencodeDict{"h": 1, "vv": "v", "l": []any{1}},
-		// 	expected: "d1:hi1e2:vv1:v1:lli1eee",
-		// },
-		// {
-		// 	input:    decoder.BencodeDict{"h": 1, "vv": "v", "l": []any{1}, "d": decoder.BencodeDict{"n": 1}},
-		// 	expected: "d1:hi1e2:vv1:v1:lli1ee1:dd1:ni1eee",
-		// },
+		{
+			input:    decoder.BencodeDict{"h": "h"},
+			expected: "d1:h1:he",
+		},
+		{
+			input:    decoder.BencodeDict{"h": 1},
+			expected: "d1:hi1ee",
+		},
+		{
+			input:    decoder.BencodeDict{"h": []any{1}},
+			expected: "d1:hli1eee",
+		},
+		{
+			input:    decoder.BencodeDict{"h": decoder.BencodeDict{"h": "h"}},
+			expected: "d1:hd1:h1:hee",
+		},
 	}
 
 	for _, test := range tests {
