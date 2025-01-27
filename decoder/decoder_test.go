@@ -1,4 +1,4 @@
-package parser
+package decoder
 
 import (
 	"os"
@@ -76,7 +76,7 @@ func TestParseBenCode(t *testing.T) {
 	}
 
 	content := string(b)
-	parsed, err := ParseBencode(content)
+	parsed, err := DecodeTorrentFile(content)
 	if err != nil {
 		t.Fatalf("Expected ParseBencode to return result got error %s instead", err)
 	}
@@ -93,31 +93,31 @@ func TestParseBenCode(t *testing.T) {
 func TestConsumeDict(t *testing.T) {
 	tests := []struct {
 		input       string
-		expected    BencodeDict
+		expected    bencodeDict
 		expectError bool
 	}{
 		// should work as expected for empty dict
 		{
 			input:       "de",
-			expected:    BencodeDict{},
+			expected:    bencodeDict{},
 			expectError: false,
 		},
 		// should work as expected for single item dict
 		{
 			input:       "d1:ki5ee",
-			expected:    BencodeDict{"k": 5},
+			expected:    bencodeDict{"k": 5},
 			expectError: false,
 		},
 		// should work as expected for list of diff items
 		{
 			input:       "d1:ki5e1:s1:se",
-			expected:    BencodeDict{"k": 5, "s": "s"},
+			expected:    bencodeDict{"k": 5, "s": "s"},
 			expectError: false,
 		},
 		// should work as expected for nested dicts
 		{
 			input:       "d1:dd1:s1:see",
-			expected:    BencodeDict{"d": BencodeDict{"s": "s"}},
+			expected:    bencodeDict{"d": bencodeDict{"s": "s"}},
 			expectError: false,
 		},
 		// should return an error if it's not a dict start
@@ -208,7 +208,7 @@ func TestConsumeList(t *testing.T) {
 		},
 		{
 			input:       "lded1:h1:hee",
-			expected:    []any{BencodeDict{}, BencodeDict{"h": "h"}},
+			expected:    []any{bencodeDict{}, bencodeDict{"h": "h"}},
 			expectError: false,
 		},
 		// should return an error if an item in the list is wrong

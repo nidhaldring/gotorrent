@@ -1,4 +1,4 @@
-package parser
+package decoder
 
 import (
 	"errors"
@@ -25,7 +25,7 @@ type TorrentInfo struct {
 
 type bencodeDict map[string]any
 
-func ParseBencode(bencode string) (*TorrentFile, error) {
+func DecodeTorrentFile(bencode string) (*TorrentFile, error) {
 	if len(bencode) == 0 {
 		return nil, errors.New("Expected a bencode string got an empty string instead")
 	}

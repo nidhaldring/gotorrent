@@ -3,7 +3,7 @@ package trackerclient
 import (
 	"encoding/json"
 	"errors"
-	"gotorrent/parser"
+	"gotorrent/decoder"
 	"io"
 	"math/rand"
 	"net/http"
@@ -20,14 +20,14 @@ const (
 
 type TrackerClient struct {
 	serverUrl  string
-	info       parser.TorrentInfo
+	info       decoder.TorrentInfo
 	peerId     string
 	downloaded int
 	left       int
 	status     TrackerClientStatus
 }
 
-func NewTrackerClient(torrentFile parser.TorrentFile) *TrackerClient {
+func NewTrackerClient(torrentFile decoder.TorrentFile) *TrackerClient {
 	return &TrackerClient{
 		serverUrl:  torrentFile.Announce,
 		info:       torrentFile.Info,
@@ -42,7 +42,7 @@ func (trackerClient *TrackerClient) AnnounceRequest() error {
 	params := url.Values{}
 	params.Add("info_hash", "")
 	params.Add("peer_id", trackerClient.peerId)
-  params.Add("status", string(trackerClient.status))
+	params.Add("status", string(trackerClient.status))
 
 	ip, err := getCurrentIp()
 	if err != nil {
@@ -59,7 +59,7 @@ func generateRandomPeerId() string {
 	// @TODO: this is bad; change it
 	randomPeerId := ""
 	for i := 0; i < 20; i++ {
-		randomPeerId += string('a' + rand.Intn('z'-'a'))
+		randomPeerId += string(rune('a' + rand.Intn('z'-'a')))
 	}
 	return randomPeerId
 }
