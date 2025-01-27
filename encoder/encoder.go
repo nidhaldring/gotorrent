@@ -1,11 +1,27 @@
 package encoder
 
 import (
+	"errors"
 	"fmt"
 	"gotorrent/decoder"
 )
 
-func EncodeDict(dict decoder.BencodeDict) string {
+func Encode(v any) (string, error) {
+	switch val := v.(type) {
+	case int:
+		return encodeInt(val), nil
+	case string:
+		return encodeString(val), nil
+	case []any:
+		return encodeList(val), nil
+	case decoder.BencodeDict:
+		return encodeDict(val), nil
+	}
+
+	return "", errors.New("given type is not supported")
+}
+
+func encodeDict(dict decoder.BencodeDict) string {
 	encodedStr := ""
 	for k, v := range dict {
 		switch val := v.(type) {
@@ -16,7 +32,7 @@ func EncodeDict(dict decoder.BencodeDict) string {
 		case []any:
 			encodedStr += fmt.Sprintf("%s%s", encodeString(k), encodeList(val))
 		case decoder.BencodeDict:
-			encodedStr += fmt.Sprintf("%s%s", encodeString(k), EncodeDict(val))
+			encodedStr += fmt.Sprintf("%s%s", encodeString(k), encodeDict(val))
 		}
 	}
 
@@ -34,7 +50,7 @@ func encodeList(list []any) string {
 		case []any:
 			encodedStr += encodeList(val)
 		case decoder.BencodeDict:
-			encodedStr += EncodeDict(val)
+			encodedStr += encodeDict(val)
 		}
 	}
 
