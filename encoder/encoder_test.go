@@ -2,6 +2,7 @@ package encoder
 
 import (
 	"gotorrent/decoder"
+	"reflect"
 	"testing"
 )
 
@@ -37,7 +38,7 @@ func TestEncodeDict(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		result := EncodeDict(test.input)
+		result := encodeDict(test.input)
 		if result != test.expected {
 			t.Errorf("input = %+v expected %s = , got = %s", test.input, test.expected, result)
 		}
@@ -123,4 +124,40 @@ func TestEncodeInt(t *testing.T) {
 			t.Errorf("input = %d expected %s = , got = %s", test.input, test.expected, result)
 		}
 	}
+}
+
+func TestStructToMap(t *testing.T) {
+	tests := []struct {
+		input    any //struct
+		expected map[string]any
+	}{
+		{
+			input: struct {
+				H int
+				L string
+			}{H: 1, L: "l"},
+			expected: map[string]any{"H": 1, "L": "l"},
+		},
+		{
+			input:    struct{}{},
+			expected: map[string]any{},
+		},
+		{
+			input:    struct{ F struct{ X int } }{F: struct{ X int }{X: 5}},
+			expected: map[string]any{"F": map[string]any{"X": 5}},
+		},
+	}
+
+	for _, test := range tests {
+		res, err := structToMap(test.input)
+
+		if err != nil {
+			t.Fatalf("expected no error got %s instead", err)
+		}
+
+		if !reflect.DeepEqual(res, test.expected) {
+			t.Errorf("input = %+v and expected %+v got %+v", test.input, test.expected, res)
+		}
+	}
+
 }
