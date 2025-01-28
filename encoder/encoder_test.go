@@ -128,7 +128,7 @@ func TestEncodeInt(t *testing.T) {
 
 func TestStructToMap(t *testing.T) {
 	tests := []struct {
-		input    any //struct
+		input    any // struct
 		expected map[string]any
 	}{
 		{

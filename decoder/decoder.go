@@ -3,6 +3,7 @@ package decoder
 import (
 	"errors"
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 )
@@ -25,7 +26,14 @@ type TorrentInfo struct {
 
 type BencodeDict map[string]any
 
-func DecodeTorrentFile(bencode string) (*TorrentFile, error) {
+func DecodeTorrentFile(filename string) (*TorrentFile, error) {
+	b, err := os.ReadFile(filename)
+	if err != nil {
+    return nil, err
+	}
+
+  bencode := string(b)
+
 	if len(bencode) == 0 {
 		return nil, errors.New("Expected a bencode string got an empty string instead")
 	}
