@@ -20,7 +20,12 @@ func Encode(v any) (string, error) {
 	}
 
 	if reflect.TypeOf(v).Kind() == reflect.Struct {
+    m, err := structToMap(v)
+    if err != nil {
+      return "", err
+    }
 
+    return encodeDict(m), nil
 	}
 
 	return "", errors.New("given type is not supported")
