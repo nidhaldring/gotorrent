@@ -56,17 +56,17 @@ func DecodeTorrentFile(filename string) (*TorrentFile, error) {
 
 	createdBy, ok := dict["created by"].(string)
 	if !ok {
-		return nil, errors.New("Announce is not string ")
+		return nil, errors.New("Created by is not string ")
 	}
 
 	creationDate, ok := dict["creation date"].(int)
 	if !ok {
-		return nil, errors.New("Announce is not string ")
+		return nil, errors.New("Creation date is not int ")
 	}
 
 	encoding, ok := dict["encoding"].(string)
 	if !ok {
-		return nil, errors.New("Announce is not string ")
+		return nil, errors.New("Encoding is not string ")
 	}
 
 	info, ok := dict["info"].(BencodeDict)
