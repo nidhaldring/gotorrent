@@ -1,21 +1,16 @@
 package trackerclient
 
 import (
+	"crypto/sha1"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"gotorrent/decoder"
+	"gotorrent/encoder"
 	"io"
 	"math/rand"
 	"net/http"
 	"net/url"
-)
-
-type TrackerClientStatus string
-
-const (
-	started   TrackerClientStatus = "started"
-	completed                     = "completed"
-	stopped                       = "stopped"
 )
 
 type TrackerClient struct {
@@ -24,7 +19,25 @@ type TrackerClient struct {
 	peerId     string
 	downloaded int
 	left       int
-	status     TrackerClientStatus
+	status     trackerClientStatus
+}
+
+
+type trackerClientStatus string
+
+const (
+	started   trackerClientStatus = "started"
+	completed                     = "completed"
+	stopped                       = "stopped"
+)
+
+type trackerResponse struct {
+  Interval int
+  Peers []struct{
+    Id string
+    Ip string
+    Port string
+  }
 }
 
 func NewTrackerClient(torrentFile decoder.TorrentFile) *TrackerClient {
@@ -38,22 +51,44 @@ func NewTrackerClient(torrentFile decoder.TorrentFile) *TrackerClient {
 	}
 }
 
-func (trackerClient *TrackerClient) AnnounceRequest() error {
+func (trackerClient *TrackerClient) AnnounceRequest() ( *trackerResponse, error ) {
 	params := url.Values{}
-	params.Add("info_hash", "")
+
+  info, err := encoder.Encode(trackerClient.info)
+  if err != nil {
+    return nil, err
+  }
+
+  h := sha1.New()
+  info_hash := string(h.Sum([]byte(info)))
+	params.Add("info_hash", info_hash)
+
 	params.Add("peer_id", trackerClient.peerId)
-	params.Add("status", string(trackerClient.status))
+	params.Add("event", string(trackerClient.status))
 
 	ip, err := getCurrentIp()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	params.Add("ip", ip)
 
-	http.Get(trackerClient.serverUrl)
+  resp, err := http.Get(fmt.Sprintf("%s?%s", trackerClient.serverUrl, params.Encode()))
+  if err != nil {
+    return nil, err
+  }
+  defer resp.Body.Close()
 
-	return nil
+  b, err := io.ReadAll(resp.Body)
+  if err != nil {
+    return nil, err
+  }
+
+  body := new(trackerResponse)
+  json.Unmarshal(b, &body) 
+
+	return body, nil
 }
+
 
 func generateRandomPeerId() string {
 	// @TODO: this is bad; change it
