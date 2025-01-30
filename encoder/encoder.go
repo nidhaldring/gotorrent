@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"gotorrent/decoder"
+	"gotorrent/utils"
 	"reflect"
 )
 
@@ -20,7 +21,7 @@ func Encode(v any) (string, error) {
 	}
 
 	if reflect.TypeOf(v).Kind() == reflect.Struct {
-    m, err := structToMap(v)
+    m, err := utils.StructToMap(v)
     if err != nil {
       return "", err
     }
@@ -75,30 +76,3 @@ func encodeInt(n int) string {
 	return fmt.Sprintf("i%de", n)
 }
 
-// this implementation is simple and optimized only for our use cases
-// note: this panics if struct has private fields
-// note: it returns capitalized map keys
-func structToMap(s any) (map[string]any, error) {
-	typ := reflect.TypeOf(s)
-	if typ.Kind() != reflect.Struct {
-		return nil, errors.New("Given value is not a struct")
-	}
-
-	val := reflect.ValueOf(s)
-	m := make(map[string]any)
-	for i := range typ.NumField() {
-		field := typ.Field(i)
-		if field.Type.Kind() == reflect.Struct {
-			nestedMap, err := structToMap(val.Field(i).Interface())
-			if err != nil {
-				return nil, err
-			}
-
-			m[field.Name] = nestedMap
-		} else {
-			m[field.Name] = val.Field(i).Interface()
-		}
-	}
-
-	return m, nil
-}
