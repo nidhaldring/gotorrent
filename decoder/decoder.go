@@ -29,20 +29,13 @@ type BencodeDict map[string]any
 func DecodeTorrentFile(filename string) (*TorrentFile, error) {
 	b, err := os.ReadFile(filename)
 	if err != nil {
-    return nil, err
-	}
-
-  bencode := string(b)
-
-	if len(bencode) == 0 {
-		return nil, errors.New("Expected a bencode string got an empty string instead")
-	}
-
-	i := 0
-	dict, err := consumeDict(bencode, &i)
-	if err != nil {
 		return nil, err
 	}
+
+  dict, err := Decode(string(b))
+  if err != nil {
+    return nil, err
+  }
 
 	announce, ok := dict["announce"].(string)
 	if !ok {
@@ -64,10 +57,11 @@ func DecodeTorrentFile(filename string) (*TorrentFile, error) {
 		return nil, errors.New("Creation date is not int ")
 	}
 
-	encoding, ok := dict["encoding"].(string)
-	if !ok {
-		return nil, errors.New("Encoding is not string ")
-	}
+	// @TODO: properly handle optional fields like encoding here
+	// encoding, ok := dict["encoding"].(string)
+	// if !ok {
+	// 	return nil, errors.New("Encoding is not string ")
+	// }
 
 	info, ok := dict["info"].(BencodeDict)
 	if !ok {
@@ -89,7 +83,7 @@ func DecodeTorrentFile(filename string) (*TorrentFile, error) {
 		return nil, errors.New("Info.'piece length' is not an int")
 	}
 
-  // @TODO: enable Pieces
+	// @TODO: enable Pieces
 	// pieces, ok := info["pieces"].(string)
 	// if !ok {
 	// 	return nil, errors.New("Info.pieces is not an array of bytes")
@@ -100,15 +94,29 @@ func DecodeTorrentFile(filename string) (*TorrentFile, error) {
 		AnnounceList: announceList,
 		CreatedBy:    createdBy,
 		CreationDate: creationDate,
-		Encoding:     encoding,
+		// Encoding:     encoding,
 		Info: TorrentInfo{
 			Length:      length,
 			Name:        name,
 			PieceLength: pieceLength,
-      // @TODO: enable Pieces
+			// @TODO: enable Pieces
 			// Pieces:      pieces,
 		},
 	}, nil
+}
+
+func Decode(bencode string) (BencodeDict, error) {
+	if len(bencode) == 0 {
+		return nil, errors.New("Expected a bencode string got an empty string instead")
+	}
+
+	i := 0
+	dict, err := consumeDict(bencode, &i)
+	if err != nil {
+		return nil, err
+	}
+
+	return dict, nil
 }
 
 /*

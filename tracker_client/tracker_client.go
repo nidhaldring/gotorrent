@@ -31,7 +31,7 @@ const (
 	stopped                       = "stopped"
 )
 
-type trackerResponse struct {
+type TrackerResponse struct {
   Interval int
   Peers []struct{
     Id string
@@ -51,7 +51,8 @@ func NewTrackerClient(torrentFile decoder.TorrentFile) *TrackerClient {
 	}
 }
 
-func (trackerClient *TrackerClient) AnnounceRequest() ( *trackerResponse, error ) {
+// @TODO: support UDP too (https://www.bittorrent.org/beps/bep_0015.html)
+func (trackerClient *TrackerClient) AnnounceRequest() ( *TrackerResponse, error ) {
 	params := url.Values{}
 
   info, err := encoder.Encode(trackerClient.info)
@@ -83,8 +84,10 @@ func (trackerClient *TrackerClient) AnnounceRequest() ( *trackerResponse, error 
     return nil, err
   }
 
-  body := new(trackerResponse)
-  json.Unmarshal(b, &body) 
+  body, err := decoder.Decode(string(b))
+  if err != nil {
+    return nil, err
+  }
 
 	return body, nil
 }

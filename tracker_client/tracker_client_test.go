@@ -17,5 +17,5 @@ func TestAnnounceRequest(t *testing.T) {
     t.Fatal(err)
   }
 
-  t.Log(r)
+  t.Logf("%+v\n", *r)
 }
