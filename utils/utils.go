@@ -39,7 +39,8 @@ func StructToMap(s any) (map[string]any, error) {
 }
 
 // Note: This implementation is simple and optimized only for our use cases
-// Note: this makes all map fields public
+// Note: this assume that naming conversion between the map & struct
+// follows the "transformName" algo.
 func MapToStruct(m map[string]any, s any) error {
 	vr := reflect.ValueOf(s)
 	if vr.Kind() != reflect.Pointer && vr.IsValid() && vr.Elem().Kind() != reflect.Struct {
@@ -48,27 +49,14 @@ func MapToStruct(m map[string]any, s any) error {
 
 	structValue := vr.Elem()
 	structType := structValue.Type()
-	for i := range structValue.NumField() {
-		field := structType.Field(i)
-		if !field.IsExported() {
+	for k, v := range m {
+		fieldName := transformName(k)
+		field, found := structType.FieldByName(fieldName)
+		// @TODO: maybe add in the struct field tag that this can be ignored
+		// for now i'm just going to report it and move on.
+		if !found {
+			fmt.Printf("[Warning]: found %s in map, transformed it into %s but could not find in struct", k, fieldName)
 			continue
-		}
-
-		var v any
-
-		// Either find the field name as it's or
-		// try to find it "uncapitalized" in the map
-		tmp, ok := m[field.Name]
-		if ok {
-			v = tmp
-		} else {
-			// try to "uncapitalized" field name
-			capitalizedName := strings.ToLower(string(field.Name[0])) + field.Name[1:]
-			tmp, ok := m[capitalizedName]
-			if !ok {
-				return errors.New(fmt.Sprintf("did not found %s or %s in map", field.Name, capitalizedName))
-			}
-			v = tmp
 		}
 
 		nestedMap, ok := v.(map[string]any)
@@ -78,9 +66,29 @@ func MapToStruct(m map[string]any, s any) error {
 				return err
 			}
 		} else {
-			structValue.Field(i).Set(reflect.ValueOf(v))
+			structValue.FieldByName(field.Name).Set(reflect.ValueOf(v))
 		}
 	}
 
 	return nil
+}
+
+func transformName(name string) string {
+	mapF := func(arr []string, f func(string) string) string {
+		res := ""
+		for _, v := range arr {
+			res += f(v)
+		}
+		return res
+	}
+	capitalize := func(s string) string {
+		if len(s) == 0 {
+			return ""
+		}
+
+		return strings.ToUpper(string(s[0])) + s[1:]
+	}
+
+	return mapF(strings.Split(mapF(strings.Split(name, " "), capitalize), "-"), capitalize)
+
 }

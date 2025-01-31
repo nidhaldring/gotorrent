@@ -84,12 +84,12 @@ func (trackerClient *TrackerClient) AnnounceRequest() ( *TrackerResponse, error 
     return nil, err
   }
 
-  body, err := decoder.Decode(string(b))
+  _, err = decoder.Decode(string(b))
   if err != nil {
     return nil, err
   }
 
-	return body, nil
+	return nil, nil
 }
 
 

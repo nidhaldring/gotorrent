@@ -60,3 +60,38 @@ func TestMapToStruct(t *testing.T) {
 		t.Errorf("input = %+v and expected %+v got %+v", input, expected, res)
 	}
 }
+
+func TestTransformName(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{
+			input:    "",
+			expected: "",
+		},
+		{
+			input:    "a",
+			expected: "A",
+		},
+		{
+			input:    "normal",
+			expected: "Normal",
+		},
+		{
+			input:    "kebab-case",
+			expected: "KebabCase",
+		},
+		{
+			input:    "with space",
+			expected: "WithSpace",
+		},
+	}
+
+	for _, test := range tests {
+		res := transformName(test.input)
+		if test.expected != res {
+			t.Fatalf("Expected '%s' for input '%s' got '%s' instead", test.expected, test.input, res)
+		}
+	}
+}

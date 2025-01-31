@@ -3,6 +3,7 @@ package decoder
 import (
 	"errors"
 	"fmt"
+	"gotorrent/utils"
 	"os"
 	"strconv"
 	"strings"
@@ -24,7 +25,11 @@ type TorrentInfo struct {
 	Pieces      string
 }
 
-type BencodeDict map[string]any
+// This is type alias that does not declare a new type
+// thus it's possible for me later to easily encode this as if 
+// it were an actual dict
+// read more here: https://stackoverflow.com/questions/61247864/what-is-the-difference-between-type-alias-and-type-definition-in-go
+type BencodeDict = map[string]any
 
 func DecodeTorrentFile(filename string) (*TorrentFile, error) {
 	b, err := os.ReadFile(filename)
@@ -32,77 +37,18 @@ func DecodeTorrentFile(filename string) (*TorrentFile, error) {
 		return nil, err
 	}
 
-  dict, err := Decode(string(b))
-  if err != nil {
-    return nil, err
-  }
-
-	announce, ok := dict["announce"].(string)
-	if !ok {
-		return nil, errors.New("Announce is not string ")
+	dict, err := Decode(string(b))
+	if err != nil {
+		return nil, err
 	}
 
-	announceList, ok := dict["announce-list"].([]any)
-	if !ok {
-		return nil, errors.New("Announce list is not an array of arrays of string ")
+	var t TorrentFile
+	err = utils.MapToStruct(dict, &t)
+	if err != nil {
+		return nil, err
 	}
 
-	createdBy, ok := dict["created by"].(string)
-	if !ok {
-		return nil, errors.New("Created by is not string ")
-	}
-
-	creationDate, ok := dict["creation date"].(int)
-	if !ok {
-		return nil, errors.New("Creation date is not int ")
-	}
-
-	// @TODO: properly handle optional fields like encoding here
-	// encoding, ok := dict["encoding"].(string)
-	// if !ok {
-	// 	return nil, errors.New("Encoding is not string ")
-	// }
-
-	info, ok := dict["info"].(BencodeDict)
-	if !ok {
-		return nil, errors.New("Info is not a dict")
-	}
-
-	length, ok := info["length"].(int)
-	if !ok {
-		return nil, errors.New("Info.length is not an int")
-	}
-
-	name, ok := info["name"].(string)
-	if !ok {
-		return nil, errors.New("Info.name is not a string")
-	}
-
-	pieceLength, ok := info["piece length"].(int)
-	if !ok {
-		return nil, errors.New("Info.'piece length' is not an int")
-	}
-
-	// @TODO: enable Pieces
-	// pieces, ok := info["pieces"].(string)
-	// if !ok {
-	// 	return nil, errors.New("Info.pieces is not an array of bytes")
-	// }
-
-	return &TorrentFile{
-		Announce:     announce,
-		AnnounceList: announceList,
-		CreatedBy:    createdBy,
-		CreationDate: creationDate,
-		// Encoding:     encoding,
-		Info: TorrentInfo{
-			Length:      length,
-			Name:        name,
-			PieceLength: pieceLength,
-			// @TODO: enable Pieces
-			// Pieces:      pieces,
-		},
-	}, nil
+	return &t, nil
 }
 
 func Decode(bencode string) (BencodeDict, error) {
