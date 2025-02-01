@@ -41,6 +41,7 @@ func StructToMap(s any) (map[string]any, error) {
 // Note: This implementation is simple and optimized only for our use cases
 // Note: this assume that naming conversion between the map & struct
 // follows the "transformName" algo.
+// "s" should be a pointer to struct we want to pouplate
 func MapToStruct(m map[string]any, s any) error {
 	vr := reflect.ValueOf(s)
 	if vr.Kind() != reflect.Pointer && vr.IsValid() && vr.Elem().Kind() != reflect.Struct {
