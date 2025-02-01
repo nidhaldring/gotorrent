@@ -42,6 +42,8 @@ func StructToMap(s any) (map[string]any, error) {
 // Note: this assume that naming conversion between the map & struct
 // follows the "transformName" algo.
 // "s" should be a pointer to struct we want to pouplate
+// @TODO: handle the case where as is pointer to struct pointer,
+// this for some reasons passes the first condition and causes the code to panic!
 func MapToStruct(m map[string]any, s any) error {
 	vr := reflect.ValueOf(s)
 	if vr.Kind() != reflect.Pointer && vr.IsValid() && vr.Elem().Kind() != reflect.Struct {
@@ -56,7 +58,7 @@ func MapToStruct(m map[string]any, s any) error {
 		// @TODO: maybe add in the struct field tag that this can be ignored
 		// for now i'm just going to report it and move on.
 		if !found {
-			fmt.Printf("[Warning]: found %s in map, transformed it into %s but could not find in struct", k, fieldName)
+			fmt.Printf("[Warning]: found %s in map, transformed it into %s but could not find in struct\n", k, fieldName)
 			continue
 		}
 

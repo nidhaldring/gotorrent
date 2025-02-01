@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"gotorrent/decoder"
 	"gotorrent/encoder"
+	"gotorrent/utils"
 	"io"
 	"math/rand"
 	"net/http"
@@ -22,7 +23,6 @@ type TrackerClient struct {
 	status     trackerClientStatus
 }
 
-
 type trackerClientStatus string
 
 const (
@@ -32,12 +32,14 @@ const (
 )
 
 type TrackerResponse struct {
-  Interval int
-  Peers []struct{
-    Id string
-    Ip string
-    Port string
-  }
+  // @TODO: FailureReason this is optional
+	FailureReason string
+	Interval      int
+	Peers         []struct {
+		Id   string
+		Ip   string
+		Port string
+	}
 }
 
 func NewTrackerClient(torrentFile decoder.TorrentFile) *TrackerClient {
@@ -52,46 +54,66 @@ func NewTrackerClient(torrentFile decoder.TorrentFile) *TrackerClient {
 }
 
 // @TODO: support UDP too (https://www.bittorrent.org/beps/bep_0015.html)
-func (trackerClient *TrackerClient) AnnounceRequest() ( *TrackerResponse, error ) {
+func (trackerClient *TrackerClient) AnnounceRequest() (*TrackerResponse, error) {
+	trackerUrl, err := trackerClient.prepareTrackerUrl()
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := http.Get(trackerUrl)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	b, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, errors.New(fmt.Sprintf("HTTP[%d] while calling tracker server %s\n %s",
+			resp.StatusCode, trackerUrl, string(b)))
+	}
+
+	fmt.Println(string(b))
+	body, err := decoder.Decode(string(b))
+	if err != nil {
+		return nil, err
+	}
+
+	var response TrackerResponse
+	utils.MapToStruct(body, &response)
+
+	return &response, nil
+}
+
+func (trackerClient *TrackerClient) prepareTrackerUrl() (string, error) {
+
 	params := url.Values{}
 
-  info, err := encoder.Encode(trackerClient.info)
-  if err != nil {
-    return nil, err
-  }
+	info, err := encoder.Encode(trackerClient.info)
+	if err != nil {
+		return "", err
+	}
 
-  h := sha1.New()
-  info_hash := string(h.Sum([]byte(info)))
-	params.Add("info_hash", info_hash)
+	h := sha1.New()
+	io.WriteString(h, info)
+	info_hash := string(h.Sum(nil))
+	params.Add("info_hash", string(info_hash))
 
 	params.Add("peer_id", trackerClient.peerId)
 	params.Add("event", string(trackerClient.status))
 
 	ip, err := getCurrentIp()
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 	params.Add("ip", ip)
 
-  resp, err := http.Get(fmt.Sprintf("%s?%s", trackerClient.serverUrl, params.Encode()))
-  if err != nil {
-    return nil, err
-  }
-  defer resp.Body.Close()
-
-  b, err := io.ReadAll(resp.Body)
-  if err != nil {
-    return nil, err
-  }
-
-  _, err = decoder.Decode(string(b))
-  if err != nil {
-    return nil, err
-  }
-
-	return nil, nil
+	trackerUrl := fmt.Sprintf("%s?%s", trackerClient.serverUrl, params.Encode())
+	return trackerUrl, nil
 }
-
 
 func generateRandomPeerId() string {
 	// @TODO: this is bad; change it

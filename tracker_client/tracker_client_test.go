@@ -11,13 +11,11 @@ func TestAnnounceRequest(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	t.Logf("%+v", *torrent)
-
 	client := NewTrackerClient(*torrent)
-	r, err := client.AnnounceRequest()
+	resp, err := client.AnnounceRequest()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	t.Logf("%+v\n", *r)
+	t.Logf("%+v\n", resp)
 }
