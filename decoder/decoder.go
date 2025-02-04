@@ -25,6 +25,22 @@ type TorrentInfo struct {
 	Pieces      string
 }
 
+func (t TorrentFile) String() string {
+	return fmt.Sprintf(`
+  [announce]: %s
+  [announce list]: %+v
+  [created by]: %s
+  [creation date]: %s
+  [encoding]: %s
+  [info]: {
+    [length]: %d
+    [name]: %s
+    [pieces length]: %d
+    [pieces]: [...]
+  }
+  `, t.Announce, t.AnnounceList, t.CreatedBy, t.CreationDate, t.Encoding, t.Info.Length, t.Info.Name, t.Info.PieceLength)
+}
+
 // This is type alias that does not declare a new type
 // thus it's possible for me later to easily type cast this to an actual dict
 // read more here: https://stackoverflow.com/questions/61247864/what-is-the-difference-between-type-alias-and-type-definition-in-go

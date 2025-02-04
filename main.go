@@ -1,27 +1,24 @@
 package main
 
+import (
+	"flag"
+	"fmt"
+	"gotorrent/decoder"
+)
+
 func main() {
-	// if len(os.Args) == 1 {
-	// 	fmt.Println("Please specify a filename to encoder")
-	// 	os.Exit(0)
-	// }
 
-	// filename := os.Args[1]
-	// file, err := os.ReadFile(filename)
-	// if err != nil {
-	// 	fmt.Println(err)
-	// 	os.Exit(0)
-	// }
+	trntFile := flag.String("decode", "", "specify torrent file to decode")
+	flag.Parse()
 
-	// // result, err := parser.ParseBencode(string(file))
-	// // if err != nil {
-	// // 	fmt.Println(err)
-	// // 	os.Exit(1)
-	// // }
+	if *trntFile != "" {
+		decoded, err := decoder.DecodeTorrentFile(*trntFile)
+		if err != nil {
+			fmt.Printf("Failed to decode %s due to [Error]: %s\n", *trntFile, err)
+		}
 
-	// // fmt.Println(result["announce"])
-
-	// // for k := range result {
-	// // 	fmt.Println(k)
-	// // }
+		fmt.Println("---------- Decoded file ----------")
+		fmt.Printf("%+v\n", decoded)
+		fmt.Println("---------- End decoded file ----------")
+	}
 }
