@@ -15,7 +15,7 @@ import (
 )
 
 type TrackerClient struct {
-	serverUrl  string
+	serverUrls []string
 	info       decoder.TorrentInfo
 	peerId     string
 	downloaded int
@@ -32,7 +32,7 @@ const (
 )
 
 type TrackerResponse struct {
-  // @TODO: FailureReason this is optional
+	// @TODO: FailureReason this is optional
 	FailureReason string
 	Interval      int
 	Peers         []struct {
@@ -43,8 +43,17 @@ type TrackerResponse struct {
 }
 
 func NewTrackerClient(torrentFile decoder.TorrentFile) *TrackerClient {
+	urls := []string{torrentFile.Announce}
+	if len(torrentFile.AnnounceList) != 0 {
+		for _, innerList := range torrentFile.AnnounceList {
+			for _, elm := range innerList {
+				urls = append(urls, elm)
+			}
+		}
+	}
+
 	return &TrackerClient{
-		serverUrl:  torrentFile.Announce,
+		serverUrls: urls,
 		info:       torrentFile.Info,
 		peerId:     generateRandomPeerId(),
 		downloaded: 0,
@@ -54,13 +63,35 @@ func NewTrackerClient(torrentFile decoder.TorrentFile) *TrackerClient {
 }
 
 // @TODO: support UDP too (https://www.bittorrent.org/beps/bep_0015.html)
-func (trackerClient *TrackerClient) AnnounceRequest() (*TrackerResponse, error) {
-	trackerUrl, err := trackerClient.prepareTrackerUrl()
-	if err != nil {
-		return nil, err
+func (trackerClient *TrackerClient) Start() (*TrackerResponse, error) {
+	var resp *TrackerResponse = nil
+	for _, u := range trackerClient.serverUrls {
+		trackerUrl, err := trackerClient.prepareTrackerUrl(u)
+		if err != nil {
+			return nil, err
+		}
+
+		tmpResp, err := trackerClient.sendRequestToTracker(trackerUrl)
+		if err != nil {
+			fmt.Printf("[Error]: %s\n", err)
+			continue
+		}
+
+		if tmpResp != nil {
+			resp = tmpResp
+			break
+		}
 	}
 
-	resp, err := http.Get(trackerUrl)
+	if resp == nil {
+		return nil, errors.New("Got no response whatsoever :(")
+	}
+
+	return resp, nil
+}
+
+func (trackerClient *TrackerClient) sendRequestToTracker(u string) (*TrackerResponse, error) {
+	resp, err := http.Get(u)
 	if err != nil {
 		return nil, err
 	}
@@ -73,7 +104,7 @@ func (trackerClient *TrackerClient) AnnounceRequest() (*TrackerResponse, error) 
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, errors.New(fmt.Sprintf("HTTP[%d] while calling tracker server %s\n %s",
-			resp.StatusCode, trackerUrl, string(b)))
+			resp.StatusCode, u, string(b)))
 	}
 
 	fmt.Println(string(b))
@@ -88,7 +119,7 @@ func (trackerClient *TrackerClient) AnnounceRequest() (*TrackerResponse, error) 
 	return &response, nil
 }
 
-func (trackerClient *TrackerClient) prepareTrackerUrl() (string, error) {
+func (trackerClient *TrackerClient) prepareTrackerUrl(u string) (string, error) {
 
 	params := url.Values{}
 
@@ -111,7 +142,7 @@ func (trackerClient *TrackerClient) prepareTrackerUrl() (string, error) {
 	}
 	params.Add("ip", ip)
 
-	trackerUrl := fmt.Sprintf("%s?%s", trackerClient.serverUrl, params.Encode())
+	trackerUrl := fmt.Sprintf("%s?%s", u, params.Encode())
 	return trackerUrl, nil
 }
 

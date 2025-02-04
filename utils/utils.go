@@ -39,7 +39,8 @@ func StructToMap(s any) (map[string]any, error) {
 }
 
 // Note: This implementation is simple and optimized only for our use cases
-// Note: this assume that naming conversion between the map & struct
+// Note: This assume that naming conversion between the map & struct
+// Note: This also assume that []any can be safely converted to [][]string
 // follows the "transformName" algo.
 // "s" should be a pointer to struct we want to pouplate
 // @TODO: handle the case where as is pointer to struct pointer,
@@ -69,7 +70,33 @@ func MapToStruct(m map[string]any, s any) error {
 				return err
 			}
 		} else {
-			structValue.FieldByName(field.Name).Set(reflect.ValueOf(v))
+			// Super hacky! but i'm going to assume that any []any is an actual [][]string
+			// because that's all i need for bencode :)!
+			// @TODO: maybe come fix this at some point :)!
+			anyr, ok := v.([]any)
+			if ok {
+				res := make([][]string, 0)
+				for _, nr := range anyr {
+					arr, ok := nr.([]any)
+					if !ok {
+						return errors.New("Expected []any to unwrap to [][]string")
+					}
+
+					inner := make([]string, 0)
+					for _, v := range arr {
+						s, ok := v.(string)
+						if !ok {
+							return errors.New(fmt.Sprintf("Expected nested array elements to of type string got %+v instead", v))
+						}
+						inner = append(inner, s)
+					}
+					res = append(res, inner)
+				}
+
+				structValue.FieldByName(field.Name).Set(reflect.ValueOf(res))
+			} else {
+				structValue.FieldByName(field.Name).Set(reflect.ValueOf(v))
+			}
 		}
 	}
 

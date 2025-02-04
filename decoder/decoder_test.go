@@ -9,9 +9,9 @@ func TestParseBenCode(t *testing.T) {
 	// @TODO: write better tests
 	expectedResult := &TorrentFile{
 		Announce: "https://torrent.ubuntu.com/announce",
-		AnnounceList: []any{
-			[]any{"https://torrent.ubuntu.com/announce"},
-			[]any{"https://ipv6.torrent.ubuntu.com/announce"},
+		AnnounceList: [][]string{
+			[]string{"https://torrent.ubuntu.com/announce"},
+			[]string{"https://ipv6.torrent.ubuntu.com/announce"},
 		},
 		CreatedBy:    "mktorrent 1.1",
 		CreationDate: 1724947415,
@@ -37,7 +37,7 @@ func TestParseBenCode(t *testing.T) {
 		t.Fatal("Expected result to be different to nil")
 	}
 
-  // @TODO: uncomment this!
+	// @TODO: uncomment this!
 	// @TODO: this currently fails because "Pieces" field is too large
 	// to put in the struct and i want to find a better way to put it there
 	// if parsed != nil && !reflect.DeepEqual(expectedResult, parsed) {

@@ -11,7 +11,7 @@ import (
 
 type TorrentFile struct {
 	Announce     string
-	AnnounceList []any
+	AnnounceList [][]string
 	CreatedBy    string
 	CreationDate int
 	Encoding     string
@@ -26,8 +26,7 @@ type TorrentInfo struct {
 }
 
 // This is type alias that does not declare a new type
-// thus it's possible for me later to easily encode this as if 
-// it were an actual dict
+// thus it's possible for me later to easily type cast this to an actual dict
 // read more here: https://stackoverflow.com/questions/61247864/what-is-the-difference-between-type-alias-and-type-definition-in-go
 type BencodeDict = map[string]any
 
