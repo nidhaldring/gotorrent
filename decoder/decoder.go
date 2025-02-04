@@ -7,6 +7,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type TorrentFile struct {
@@ -38,7 +39,8 @@ func (t TorrentFile) String() string {
     [pieces length]: %d
     [pieces]: [...]
   }
-  `, t.Announce, t.AnnounceList, t.CreatedBy, t.CreationDate, t.Encoding, t.Info.Length, t.Info.Name, t.Info.PieceLength)
+  `, t.Announce, t.AnnounceList, t.CreatedBy, time.Unix(int64(t.CreationDate), 0),
+		t.Encoding, t.Info.Length, t.Info.Name, t.Info.PieceLength)
 }
 
 // This is type alias that does not declare a new type
