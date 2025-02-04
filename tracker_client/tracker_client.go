@@ -12,6 +12,7 @@ import (
 	"math/rand"
 	"net/http"
 	"net/url"
+	"strings"
 )
 
 type TrackerClient struct {
@@ -91,6 +92,22 @@ func (trackerClient *TrackerClient) Start() (*TrackerResponse, error) {
 }
 
 func (trackerClient *TrackerClient) sendRequestToTracker(u string) (*TrackerResponse, error) {
+	parsedUrl, err := url.Parse(u)
+	if err != nil {
+		return nil, err
+	}
+
+	if strings.Index(parsedUrl.Scheme, "http") == 0 {
+		return trackerClient.sendHttpRequestToTracker(u)
+	}
+
+	// @TODO: support udp
+
+	return nil, nil
+}
+
+// this does not yet work and it's badly tested
+func (trackerClient *TrackerClient) sendHttpRequestToTracker(u string) (*TrackerResponse, error) {
 	resp, err := http.Get(u)
 	if err != nil {
 		return nil, err
