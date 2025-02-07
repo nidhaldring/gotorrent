@@ -168,71 +168,8 @@ func (tc *TrackerClient) sendUDPAnnounceRequest(u *url.URL) (*TrackerResponse, e
 	defer conn.Close()
 
 	announce := new(bytes.Buffer)
-
-	if err := binary.Write(announce, binary.BigEndian, tc.connectionId); err != nil {
-		return nil, err
-	}
-
-	if err := binary.Write(announce, binary.BigEndian, udpAnnounce); err != nil {
-		return nil, err
-	}
-
 	var randomTransactionId int32 = rand.Int31()
-	if err := binary.Write(announce, binary.BigEndian, randomTransactionId); err != nil {
-		return nil, err
-	}
-
-	if err := binary.Write(announce, binary.BigEndian, tc.peerId); err != nil {
-		return nil, err
-	}
-
-	if err := binary.Write(announce, binary.BigEndian, []byte(tc.infoHash)); err != nil {
-		return nil, err
-	}
-
-	var downloaded int64 = 0
-	if err := binary.Write(announce, binary.BigEndian, downloaded); err != nil {
-		return nil, err
-	}
-
-	var left int64 = int64(tc.torrentFile.Info.Length)
-	if err := binary.Write(announce, binary.BigEndian, left); err != nil {
-		return nil, err
-	}
-
-	var uploaded int64 = 0
-	if err := binary.Write(announce, binary.BigEndian, uploaded); err != nil {
-		return nil, err
-	}
-
-	if err := binary.Write(announce, binary.BigEndian, started); err != nil {
-		return nil, err
-	}
-
-	var ip uint32 = 0
-	if err := binary.Write(announce, binary.BigEndian, ip); err != nil {
-		return nil, err
-	}
-
-	var key uint32 = rand.Uint32()
-	if err := binary.Write(announce, binary.BigEndian, key); err != nil {
-		return nil, err
-	}
-
-	var numPeersWant int32 = -1
-	if err := binary.Write(announce, binary.BigEndian, numPeersWant); err != nil {
-		return nil, err
-	}
-
-	var port uint16 = 6881
-	if err := binary.Write(announce, binary.BigEndian, port); err != nil {
-		return nil, err
-	}
-
-	var extension uint16 = 0
-	if err := binary.Write(announce, binary.BigEndian, extension); err != nil {
-		return nil, err
-	}
+	tc.writeAnnounceRequest(announce, randomTransactionId)
 
 	if _, err := conn.Write(announce.Bytes()); err != nil {
 		return nil, err
@@ -259,6 +196,51 @@ func (tc *TrackerClient) sendUDPAnnounceRequest(u *url.URL) (*TrackerResponse, e
 	}
 
 	return &TrackerResponse{Interval: interval}, nil
+}
+
+func (tc *TrackerClient) writeAnnounceRequest(req *bytes.Buffer, transactionId int32) error {
+	write := func(buff *bytes.Buffer, data any) error {
+		if err := binary.Write(buff, binary.BigEndian, data); err != nil {
+			return err
+		}
+		return nil
+	}
+
+	var (
+		downloaded   int64  = 0
+		left         int64  = int64(tc.torrentFile.Info.Length)
+		uploaded     int64  = 0
+		ip           uint32 = 0
+		key          uint32 = rand.Uint32()
+		numPeersWant int32  = -1
+		port         uint16 = 6881
+		extension    uint16 = 0
+	)
+
+	values := []any{
+		tc.connectionId,
+		udpAnnounce,
+		transactionId,
+		[]byte(tc.infoHash),
+		tc.peerId,
+		downloaded,
+		left,
+		uploaded,
+		started,
+		ip,
+		key,
+		numPeersWant,
+		port,
+		extension,
+	}
+
+	for _, v := range values {
+		if err := write(req, v); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (tc *TrackerClient) setUpUDPConnectionId(u *url.URL) error {
@@ -339,7 +321,7 @@ func (tc *TrackerClient) prepareTrackerUrl(u string) (*url.URL, error) {
 }
 
 func generateRandomPeerId() []byte {
-	var randomPeerId  = make([]byte, 20)
+	var randomPeerId = make([]byte, 20)
 	for i := 0; i < 20; i++ {
 		randomPeerId[i] = byte('a' + rand.Intn('z'-'a'))
 	}
