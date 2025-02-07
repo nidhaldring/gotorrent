@@ -11,8 +11,12 @@ func TestAnnounceRequest(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	client := NewTrackerClient(*torrent)
-	resp, err := client.Start()
+	client, err := NewTrackerClient(*torrent)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	resp, err := client.Announce()
 	if err != nil {
 		t.Fatal(err)
 	}
