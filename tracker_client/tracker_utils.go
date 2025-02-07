@@ -46,6 +46,8 @@ func getCurrentIp() (string, error) {
 	return body.Query, nil
 }
 
+// @TODO: i'm keep this since maybe it can be useful when implementing "Multitracker Metadata Extension"
+// see: https://bittorrent.org/beps/bep_0012.html
 func getUrls(torrentFile decoder.TorrentFile) []string {
 	urls := []string{torrentFile.Announce}
 	if len(torrentFile.AnnounceList) != 0 {

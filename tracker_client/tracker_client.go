@@ -21,10 +21,12 @@ import (
 )
 
 // @TODO: maybe reuse udp connections ??
+// @TODO: implement "Multitracker Metadata Extension" https://bittorrent.org/beps/bep_0012.html
 type TrackerClient struct {
-	url         *url.URL
-	torrentFile decoder.TorrentFile
-	infoHash    string
+	announceUrl  *url.URL
+	torrentFile  decoder.TorrentFile
+	infoHash     string
+	numPeersWant int32
 
 	downloaded int64
 	left       int64
@@ -40,6 +42,9 @@ type TrackerClient struct {
 // This will identify the protocol.
 const udpTrackerProtocolMagicNumber int64 = 0x41727101980
 
+// ip + port size for one peer returned in udp
+const peerStructureSize = 6
+
 // List of actions sent to tracker
 const (
 	udpConnect int32 = iota
@@ -48,24 +53,13 @@ const (
 	udpError
 )
 
-// list of possible status the clients can have
+// List of possible status the clients can have
 const (
 	none int32 = iota
 	completed
 	started
 	stopped
 )
-
-type TrackerResponse struct {
-	// @TODO: FailureReason this is optional
-	FailureReason string
-	Interval      int32
-	Peers         []struct {
-		Id   string
-		Ip   string
-		Port string
-	}
-}
 
 func NewTrackerClient(torrentFile decoder.TorrentFile) (*TrackerClient, error) {
 	info, err := encoder.Encode(torrentFile.Info)
@@ -74,60 +68,64 @@ func NewTrackerClient(torrentFile decoder.TorrentFile) (*TrackerClient, error) {
 	}
 
 	h := sha1.New()
-	io.WriteString(h, info)
+	if _, err := io.WriteString(h, info); err != nil {
+		return nil, err
+	}
 	infoHash := string(h.Sum(nil))
 
+	u, err := url.Parse(torrentFile.Announce)
+	if err != nil {
+		return nil, err
+	} else if strings.HasPrefix(u.Scheme, "http") && strings.HasPrefix(u.Scheme, "udp") {
+		return nil, fmt.Errorf("Unsupported protofol for %s, we only support HTTP/UDP", u.Scheme)
+	}
+
 	return &TrackerClient{
-		peerId:      generateRandomPeerId(),
-		downloaded:  0,
-		torrentFile: torrentFile,
-		infoHash:    infoHash,
-		left:        int64(torrentFile.Info.Length),
-		status:      none,
+		announceUrl:  u,
+		torrentFile:  torrentFile,
+		infoHash:     infoHash,
+		numPeersWant: 5,
+
+		downloaded: 0,
+		left:       int64(torrentFile.Info.Length),
+		status:     none,
+
+		peerId: generateRandomPeerId(),
 	}, nil
 }
 
-func (tc *TrackerClient) Announce() (*TrackerResponse, error) {
-	serverUrls := getUrls(tc.torrentFile)
-	var resp *TrackerResponse = nil
-	for _, u := range serverUrls {
-		trackerUrl, err := tc.prepareTrackerUrl(u)
-		if err != nil {
-			return nil, err
-		}
-
-		tmpResp, err := tc.sendAnnounceRequest(trackerUrl)
-		if err != nil {
-			fmt.Printf("[Error]: %s\n", err)
-			continue
-		}
-
-		if tmpResp != nil {
-			resp = tmpResp
-			break
-		}
-	}
-
-	if resp == nil {
-		return nil, errors.New("Got no response whatsoever :(")
-	}
-
-	return resp, nil
+type UdpPeer struct {
+	Ip int32
+	Id uint16
 }
 
-func (tc *TrackerClient) sendAnnounceRequest(u *url.URL) (*TrackerResponse, error) {
-	if strings.Index(u.Scheme, "http") == 0 {
-		return tc.sendHTTPAnnounceRequest(u.String())
-	} else if strings.Index(u.Scheme, "udp") == 0 {
-		return tc.sendUDPAnnounceRequest(u)
-	}
+type trackerResponse struct {
+	// This will only be populated if response failed
+	FailureReason string
 
-	return nil, errors.New(fmt.Sprintf("Unsupported protofol for url=%s", u))
+	// The number of seconds you should wait until re-announcing yourself.
+	Interval int32
+	Leechers int32
+	Seeders  int32
+
+	Peers []UdpPeer
+}
+
+func (tc *TrackerClient) Announce() (*trackerResponse, error) {
+	if strings.Index(tc.announceUrl.Scheme, "http") == 0 {
+		return tc.sendHTTPAnnounceRequest()
+	}
+	return tc.sendUDPAnnounceRequest()
 }
 
 // this does not yet work and it's badly tested
-func (tc *TrackerClient) sendHTTPAnnounceRequest(u string) (*TrackerResponse, error) {
-	resp, err := http.Get(u)
+func (tc *TrackerClient) sendHTTPAnnounceRequest() (*trackerResponse, error) {
+	u, err := tc.getHttpTrackerUrl()
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := http.Get(u.String())
 	if err != nil {
 		return nil, err
 	}
@@ -139,8 +137,7 @@ func (tc *TrackerClient) sendHTTPAnnounceRequest(u string) (*TrackerResponse, er
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, errors.New(fmt.Sprintf("HTTP[%d] while calling tracker server %s\n %s",
-			resp.StatusCode, u, string(b)))
+		return nil, fmt.Errorf("HTTP[%d] while calling tracker server %s\n %s", resp.StatusCode, u, string(b))
 	}
 
 	body, err := decoder.Decode(string(b))
@@ -148,19 +145,19 @@ func (tc *TrackerClient) sendHTTPAnnounceRequest(u string) (*TrackerResponse, er
 		return nil, err
 	}
 
-	var response TrackerResponse
+	var response trackerResponse
 	utils.MapToStruct(body, &response)
 
 	return &response, nil
 }
 
-func (tc *TrackerClient) sendUDPAnnounceRequest(u *url.URL) (*TrackerResponse, error) {
-	err := tc.setUpUDPConnectionId(u)
+func (tc *TrackerClient) sendUDPAnnounceRequest() (*trackerResponse, error) {
+	err := tc.setUpUDPConnectionId()
 	if err != nil {
 		return nil, err
 	}
 
-	conn, err := utils.ConnectToUDPURL(u)
+	conn, err := utils.ConnectToUDPURL(tc.announceUrl)
 	if err != nil {
 		return nil, err
 	}
@@ -174,7 +171,7 @@ func (tc *TrackerClient) sendUDPAnnounceRequest(u *url.URL) (*TrackerResponse, e
 		return nil, err
 	}
 
-	resp := make([]byte, 200)
+	resp := make([]byte, 20+tc.numPeersWant*peerStructureSize)
 	// @TODO: there must be a way to time this out or it will wait forever
 	if _, err := conn.Read(resp); err != nil {
 		return nil, err
@@ -190,11 +187,38 @@ func (tc *TrackerClient) sendUDPAnnounceRequest(u *url.URL) (*TrackerResponse, e
 	binary.Read(r, binary.BigEndian, &leechers)
 	binary.Read(r, binary.BigEndian, &seeders)
 
-	if transactionId != randomTransactionId {
-		return nil, errors.New(fmt.Sprintf("Received different transaction_id, sent %d and got %d", randomTransactionId, transactionId))
+	peers := make([]UdpPeer, 0)
+	for {
+		var peer UdpPeer
+
+		if err := binary.Read(r, binary.BigEndian, &peer.Ip); err != nil {
+			if err == io.EOF {
+				break
+			}
+			return nil, err
+		}
+
+		if err := binary.Read(r, binary.BigEndian, &peer.Id); err != nil {
+			if err == io.EOF {
+				break
+			}
+			return nil, err
+		}
+
+		// I'm not sure why but tracker always returns "numPeersWant" even if the tracker does not have
+		// that much so i will end up with id=0, ip=0 thus i'm ending reading as soon as i get this case
+		if peer.Id == 0 && peer.Ip == 0 {
+			break
+		}
+
+		peers = append(peers, peer)
 	}
 
-	return &TrackerResponse{Interval: interval}, nil
+	if transactionId != randomTransactionId {
+		return nil, fmt.Errorf("Received different transaction_id, sent %d and got %d", randomTransactionId, transactionId)
+	}
+
+	return &trackerResponse{Interval: interval, Leechers: leechers, Seeders: seeders, Peers: peers}, nil
 }
 
 func (tc *TrackerClient) writeAnnounceRequest(req *bytes.Buffer, transactionId int32) error {
@@ -206,14 +230,13 @@ func (tc *TrackerClient) writeAnnounceRequest(req *bytes.Buffer, transactionId i
 	}
 
 	var (
-		downloaded   int64  = 0
-		left         int64  = int64(tc.torrentFile.Info.Length)
-		uploaded     int64  = 0
-		ip           uint32 = 0
-		key          uint32 = rand.Uint32()
-		numPeersWant int32  = -1
-		port         uint16 = 6881
-		extension    uint16 = 0
+		downloaded int64  = 0
+		left       int64  = int64(tc.torrentFile.Info.Length)
+		uploaded   int64  = 0
+		ip         uint32 = 0
+		key        uint32 = rand.Uint32()
+		port       uint16 = 6881
+		extension  uint16 = 0
 	)
 
 	values := []any{
@@ -228,7 +251,7 @@ func (tc *TrackerClient) writeAnnounceRequest(req *bytes.Buffer, transactionId i
 		started,
 		ip,
 		key,
-		numPeersWant,
+		tc.numPeersWant,
 		port,
 		extension,
 	}
@@ -242,8 +265,8 @@ func (tc *TrackerClient) writeAnnounceRequest(req *bytes.Buffer, transactionId i
 	return nil
 }
 
-func (tc *TrackerClient) setUpUDPConnectionId(u *url.URL) error {
-	conn, err := utils.ConnectToUDPURL(u)
+func (tc *TrackerClient) setUpUDPConnectionId() error {
+	conn, err := utils.ConnectToUDPURL(tc.announceUrl)
 	if err != nil {
 		return err
 	}
@@ -285,7 +308,7 @@ func (tc *TrackerClient) setUpUDPConnectionId(u *url.URL) error {
 	binary.Read(r, binary.BigEndian, &connectionId)
 
 	if transactionId != randomTransactionId {
-		return errors.New(fmt.Sprintf("Received different transaction_id, sent %d and got %d", randomTransactionId, transactionId))
+		return fmt.Errorf("Received different transaction_id, sent %d and got %d", randomTransactionId, transactionId)
 	}
 
 	if action == udpError {
@@ -297,11 +320,10 @@ func (tc *TrackerClient) setUpUDPConnectionId(u *url.URL) error {
 	return nil
 }
 
-func (tc *TrackerClient) prepareTrackerUrl(u string) (*url.URL, error) {
+func (tc *TrackerClient) getHttpTrackerUrl() (*url.URL, error) {
 	params := url.Values{}
 
 	params.Add("info_hash", tc.infoHash)
-
 	params.Add("peer_id", string(tc.peerId))
 	params.Add("event", string(tc.status))
 
@@ -311,11 +333,10 @@ func (tc *TrackerClient) prepareTrackerUrl(u string) (*url.URL, error) {
 	}
 	params.Add("ip", ip)
 
-	trackerUrl, err := url.Parse(fmt.Sprintf("%s?%s", u, params.Encode()))
+	trackerUrl, err := url.Parse(fmt.Sprintf("%s?%s", tc.announceUrl, params.Encode()))
 	if err != nil {
 		return nil, err
 	}
 
 	return trackerUrl, nil
 }
-
