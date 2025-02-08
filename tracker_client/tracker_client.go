@@ -146,10 +146,15 @@ func (tc *TrackerClient) sendHTTPAnnounceRequest() (*trackerResponse, error) {
 		return nil, err
 	}
 
-	var response trackerResponse
-	utils.MapToStruct(body, &response)
+	failureReason, _ := body["failure reason"].(string)
+	interval, _ := body["interval"].(int)
+	leechers, _ := body["leechers"].(int)
 
-	return &response, nil
+	return &trackerResponse{
+		FailureReason: failureReason,
+		Interval:      int32(interval),
+		Leechers:      int32(leechers),
+	}, nil
 }
 
 func (tc *TrackerClient) sendUDPAnnounceRequest() (*trackerResponse, error) {
