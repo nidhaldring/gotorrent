@@ -165,7 +165,6 @@ func (tc *TrackerClient) sendHTTPAnnounceRequest() (*trackerResponse, error) {
 				return nil, err
 			}
 
-
 			peers = append(peers, udpPeer{
 				Ip:   netip.AddrFrom4([4]byte(buff.Bytes())),
 				Port: uint16(port),
