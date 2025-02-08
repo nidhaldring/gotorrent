@@ -16,6 +16,7 @@ import (
 	"io"
 	"math/rand"
 	"net/http"
+	"net/netip"
 	"net/url"
 	"strings"
 )
@@ -95,8 +96,8 @@ func NewTrackerClient(torrentFile decoder.TorrentFile) (*TrackerClient, error) {
 }
 
 type UdpPeer struct {
-	Ip int32
-	Id uint16
+	Ip   netip.Addr
+	Port uint16
 }
 
 type trackerResponse struct {
@@ -189,16 +190,19 @@ func (tc *TrackerClient) sendUDPAnnounceRequest() (*trackerResponse, error) {
 
 	peers := make([]UdpPeer, 0)
 	for {
-		var peer UdpPeer
+		var (
+			ip   [4]byte
+			port uint16
+		)
 
-		if err := binary.Read(r, binary.BigEndian, &peer.Ip); err != nil {
+		if err := binary.Read(r, binary.BigEndian, &ip); err != nil {
 			if err == io.EOF {
 				break
 			}
 			return nil, err
 		}
 
-		if err := binary.Read(r, binary.BigEndian, &peer.Id); err != nil {
+		if err := binary.Read(r, binary.BigEndian, &port); err != nil {
 			if err == io.EOF {
 				break
 			}
@@ -206,12 +210,15 @@ func (tc *TrackerClient) sendUDPAnnounceRequest() (*trackerResponse, error) {
 		}
 
 		// I'm not sure why but tracker always returns "numPeersWant" even if the tracker does not have
-		// that much so i will end up with id=0, ip=0 thus i'm ending reading as soon as i get this case
-		if peer.Id == 0 && peer.Ip == 0 {
+		// that much so i will end up with port=0, ip=0.0.0.0 thus i'm ending reading as soon as i get this case
+		if port == 0 {
 			break
 		}
 
-		peers = append(peers, peer)
+		peers = append(peers, UdpPeer{
+			Ip:   netip.AddrFrom4(ip),
+			Port: port,
+		})
 	}
 
 	if transactionId != randomTransactionId {
