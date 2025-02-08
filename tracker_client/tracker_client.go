@@ -95,7 +95,7 @@ func NewTrackerClient(torrentFile decoder.TorrentFile) (*TrackerClient, error) {
 	}, nil
 }
 
-type UdpPeer struct {
+type udpPeer struct {
 	Ip   netip.Addr
 	Port uint16
 }
@@ -109,7 +109,7 @@ type trackerResponse struct {
 	Leechers int32
 	Seeders  int32
 
-	Peers []UdpPeer
+	Peers []udpPeer
 }
 
 func (tc *TrackerClient) Announce() (*trackerResponse, error) {
@@ -120,6 +120,7 @@ func (tc *TrackerClient) Announce() (*trackerResponse, error) {
 }
 
 // this does not yet work and it's badly tested
+// @TODO: test this
 func (tc *TrackerClient) sendHTTPAnnounceRequest() (*trackerResponse, error) {
 	u, err := tc.getHttpTrackerUrl()
 	if err != nil {
@@ -150,10 +151,58 @@ func (tc *TrackerClient) sendHTTPAnnounceRequest() (*trackerResponse, error) {
 	interval, _ := body["interval"].(int)
 	leechers, _ := body["leechers"].(int)
 
+	peers := make([]udpPeer, 0)
+	anyPeers, _ := body["peers"].([]any)
+	for _, p := range anyPeers {
+		v, ok := p.(map[string]any)
+		if ok {
+			port, _ := v["port"].(int)
+
+			ip, _ := v["ip"].(int)
+			buff := new(bytes.Buffer)
+			// @TODO: use system specific "endianness"
+			if err := binary.Write(buff, binary.LittleEndian, ip); err != nil {
+				return nil, err
+			}
+
+
+			peers = append(peers, udpPeer{
+				Ip:   netip.AddrFrom4([4]byte(buff.Bytes())),
+				Port: uint16(port),
+			})
+		} else {
+			// it should be a byte string as in udp
+			v, ok := p.(string)
+			if !ok {
+				return nil, errors.New("Expected peer to either be dict or byte arr")
+			}
+
+			r := bytes.NewBuffer([]byte(v))
+			var (
+				ip   [4]byte
+				port uint16
+			)
+
+			if err := binary.Read(r, binary.BigEndian, &ip); err != nil {
+				return nil, err
+			}
+
+			if err := binary.Read(r, binary.BigEndian, &port); err != nil {
+				return nil, err
+			}
+
+			peers = append(peers, udpPeer{
+				Ip:   netip.AddrFrom4(ip),
+				Port: uint16(port),
+			})
+		}
+	}
+
 	return &trackerResponse{
 		FailureReason: failureReason,
 		Interval:      int32(interval),
 		Leechers:      int32(leechers),
+		Peers:         peers,
 	}, nil
 }
 
@@ -193,7 +242,7 @@ func (tc *TrackerClient) sendUDPAnnounceRequest() (*trackerResponse, error) {
 	binary.Read(r, binary.BigEndian, &leechers)
 	binary.Read(r, binary.BigEndian, &seeders)
 
-	peers := make([]UdpPeer, 0)
+	peers := make([]udpPeer, 0)
 	for {
 		var (
 			ip   [4]byte
@@ -220,7 +269,7 @@ func (tc *TrackerClient) sendUDPAnnounceRequest() (*trackerResponse, error) {
 			break
 		}
 
-		peers = append(peers, UdpPeer{
+		peers = append(peers, udpPeer{
 			Ip:   netip.AddrFrom4(ip),
 			Port: port,
 		})
