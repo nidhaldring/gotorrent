@@ -141,7 +141,7 @@ type UdpPeer struct {
 	Port uint16
 }
 
-func (tc *TrackerClient) getPeers() []UdpPeer {
+func (tc *TrackerClient) GetPeers() []UdpPeer {
 	tc.mu.Lock()
 	defer tc.mu.Unlock()
 
