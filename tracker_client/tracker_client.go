@@ -28,7 +28,7 @@ import (
 // This will identify the protocol.
 const udpTrackerProtocolMagicNumber int64 = 0x41727101980
 
-// ip + port size for one peer returned in udp
+// Ip + port size for one peer returned in udp
 const peerStructureSize = 6
 
 // List of actions sent to tracker
@@ -407,8 +407,9 @@ func (tc *TrackerClient) setUpUDPConnectionId() error {
 		return err
 	}
 
+	timeout, _ := time.ParseDuration("1m")
+	conn.SetReadDeadline(time.Now().Add(timeout))
 	resp := make([]byte, 16)
-	// @TODO: there must be a way to time this out or it will wait forever
 	if _, err := conn.Read(resp); err != nil {
 		return err
 	}
