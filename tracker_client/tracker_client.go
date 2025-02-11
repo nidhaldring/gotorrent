@@ -25,29 +25,6 @@ import (
 	"time"
 )
 
-// @TODO: maybe reuse udp connections ??
-// @TODO: implement "Multitracker Metadata Extension" https://bittorrent.org/beps/bep_0012.html
-type TrackerClient struct {
-	mu sync.Mutex
-
-	announceUrl      *url.URL
-	announceInterval int32
-	torrentFile      decoder.TorrentFile
-	infoHash         string
-	numPeersWant     int32
-
-	peers      []UdpPeer
-	downloaded int64
-	left       int64
-	uploaded   int64
-	status     int32
-
-	// this is used for udp and it can expire
-	// @TODO: check if connectionId expired before sending udp req
-	connectionId int64
-	peerId       []byte
-}
-
 // This will identify the protocol.
 const udpTrackerProtocolMagicNumber int64 = 0x41727101980
 
@@ -70,6 +47,29 @@ const (
 	stopped
 )
 
+// @TODO: maybe reuse udp connections ??
+// @TODO: implement "Multitracker Metadata Extension" https://bittorrent.org/beps/bep_0012.html
+type TrackerClient struct {
+	torrentFile      decoder.TorrentFile
+	announceUrl      *url.URL
+	announceInterval int32
+	infoHash         string
+	numPeersWant     int32
+
+	peers      []UdpPeer
+	downloaded int64
+	left       int64
+	uploaded   int64
+	status     int32
+
+	// this is used for udp and it can expire
+	// @TODO: check if connectionId expired before sending udp req
+	connectionId int64
+	peerId       []byte
+
+	mu sync.Mutex
+}
+
 func NewTrackerClient(torrentFile decoder.TorrentFile) (*TrackerClient, error) {
 	info, err := encoder.Encode(torrentFile.Info)
 	if err != nil {
@@ -90,8 +90,8 @@ func NewTrackerClient(torrentFile decoder.TorrentFile) (*TrackerClient, error) {
 	}
 
 	return &TrackerClient{
-		announceUrl:  u,
 		torrentFile:  torrentFile,
+		announceUrl:  u,
 		infoHash:     infoHash,
 		numPeersWant: 5,
 
@@ -151,7 +151,7 @@ func (tc *TrackerClient) GetPeers() []UdpPeer {
 	return peers
 }
 
-type trackerResponse struct {
+type announceResponse struct {
 	// The number of seconds you should wait until re-announcing yourself.
 	Interval int32
 
@@ -161,7 +161,7 @@ type trackerResponse struct {
 	Peers []UdpPeer
 }
 
-func (tc *TrackerClient) announce() (*trackerResponse, error) {
+func (tc *TrackerClient) announce() (*announceResponse, error) {
 	if strings.Index(tc.announceUrl.Scheme, "http") == 0 {
 		return tc.sendHTTPAnnounceRequest()
 	}
@@ -170,7 +170,7 @@ func (tc *TrackerClient) announce() (*trackerResponse, error) {
 
 // this does not yet work and it's badly tested
 // @TODO: test this
-func (tc *TrackerClient) sendHTTPAnnounceRequest() (*trackerResponse, error) {
+func (tc *TrackerClient) sendHTTPAnnounceRequest() (*announceResponse, error) {
 	u, err := tc.getHttpTrackerUrl()
 	if err != nil {
 		return nil, err
@@ -214,8 +214,7 @@ func (tc *TrackerClient) sendHTTPAnnounceRequest() (*trackerResponse, error) {
 
 			ip, _ := v["ip"].(int)
 			buff := new(bytes.Buffer)
-			// @TODO: use system specific "endianness"
-			if err := binary.Write(buff, binary.LittleEndian, ip); err != nil {
+			if err := binary.Write(buff, binary.NativeEndian, ip); err != nil {
 				return nil, err
 			}
 
@@ -251,14 +250,14 @@ func (tc *TrackerClient) sendHTTPAnnounceRequest() (*trackerResponse, error) {
 		}
 	}
 
-	return &trackerResponse{
+	return &announceResponse{
 		Interval: int32(interval),
 		Leechers: int32(leechers),
 		Peers:    peers,
 	}, nil
 }
 
-func (tc *TrackerClient) sendUDPAnnounceRequest() (*trackerResponse, error) {
+func (tc *TrackerClient) sendUDPAnnounceRequest() (*announceResponse, error) {
 	err := tc.setUpUDPConnectionId()
 	if err != nil {
 		return nil, err
@@ -333,7 +332,7 @@ func (tc *TrackerClient) sendUDPAnnounceRequest() (*trackerResponse, error) {
 		return nil, fmt.Errorf("Received different transaction_id, sent %d and got %d", randomTransactionId, transactionId)
 	}
 
-	return &trackerResponse{Interval: interval, Leechers: leechers, Seeders: seeders, Peers: peers}, nil
+	return &announceResponse{Interval: interval, Leechers: leechers, Seeders: seeders, Peers: peers}, nil
 }
 
 func (tc *TrackerClient) writeAnnounceRequest(req *bytes.Buffer, transactionId int32) error {
