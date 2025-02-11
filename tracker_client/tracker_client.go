@@ -6,6 +6,7 @@ package trackerclient
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha1"
 	"encoding/binary"
 	"errors"
@@ -14,21 +15,28 @@ import (
 	"gotorrent/encoder"
 	"gotorrent/utils"
 	"io"
+	"log"
 	"math/rand"
 	"net/http"
 	"net/netip"
 	"net/url"
 	"strings"
+	"sync"
+	"time"
 )
 
 // @TODO: maybe reuse udp connections ??
 // @TODO: implement "Multitracker Metadata Extension" https://bittorrent.org/beps/bep_0012.html
 type TrackerClient struct {
-	announceUrl  *url.URL
-	torrentFile  decoder.TorrentFile
-	infoHash     string
-	numPeersWant int32
+	mu sync.Mutex
 
+	announceUrl      *url.URL
+	announceInterval int32
+	torrentFile      decoder.TorrentFile
+	infoHash         string
+	numPeersWant     int32
+
+	peers      []UdpPeer
 	downloaded int64
 	left       int64
 	uploaded   int64
@@ -95,24 +103,65 @@ func NewTrackerClient(torrentFile decoder.TorrentFile) (*TrackerClient, error) {
 	}, nil
 }
 
-type udpPeer struct {
+func (tc *TrackerClient) Start(ctx context.Context, chErr chan<- error) {
+	for {
+		d, err := time.ParseDuration(fmt.Sprintf("%ds", tc.announceInterval))
+		if err != nil {
+			chErr <- fmt.Errorf("Couldn't parse %ds into duration got err '%s' instead!", tc.announceInterval, err)
+			return
+		}
+
+		interval := time.After(d)
+		log.Printf("Waiting for %s (%d seconds) before sending announce req \n", d, tc.announceInterval)
+		select {
+		case <-ctx.Done():
+			return
+		case <-interval:
+			log.Printf("Sending announce request\n")
+			resp, err := tc.announce()
+			if err != nil {
+				chErr <- err
+				return
+			}
+			log.Printf("Announce response %+v\n", resp)
+
+			tc.mu.Lock()
+
+			// @TODO: fill the rest of the values
+			tc.announceInterval = resp.Interval
+			tc.peers = resp.Peers
+
+			tc.mu.Unlock()
+		}
+	}
+}
+
+type UdpPeer struct {
 	Ip   netip.Addr
 	Port uint16
 }
 
-type trackerResponse struct {
-	// This will only be populated if response failed
-	FailureReason string
+func (tc *TrackerClient) getPeers() []UdpPeer {
+	tc.mu.Lock()
+	defer tc.mu.Unlock()
 
+	peers := make([]UdpPeer, len(tc.peers))
+	copy(peers, tc.peers)
+
+	return peers
+}
+
+type trackerResponse struct {
 	// The number of seconds you should wait until re-announcing yourself.
 	Interval int32
+
 	Leechers int32
 	Seeders  int32
 
-	Peers []udpPeer
+	Peers []UdpPeer
 }
 
-func (tc *TrackerClient) Announce() (*trackerResponse, error) {
+func (tc *TrackerClient) announce() (*trackerResponse, error) {
 	if strings.Index(tc.announceUrl.Scheme, "http") == 0 {
 		return tc.sendHTTPAnnounceRequest()
 	}
@@ -132,6 +181,7 @@ func (tc *TrackerClient) sendHTTPAnnounceRequest() (*trackerResponse, error) {
 		return nil, err
 	}
 	defer resp.Body.Close()
+	log.Printf("Sending an HTTP GET to %s\n", u)
 
 	b, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -148,10 +198,14 @@ func (tc *TrackerClient) sendHTTPAnnounceRequest() (*trackerResponse, error) {
 	}
 
 	failureReason, _ := body["failure reason"].(string)
+	if failureReason != "" {
+		return nil, fmt.Errorf("%s", failureReason)
+	}
+
 	interval, _ := body["interval"].(int)
 	leechers, _ := body["leechers"].(int)
 
-	peers := make([]udpPeer, 0)
+	peers := make([]UdpPeer, 0)
 	anyPeers, _ := body["peers"].([]any)
 	for _, p := range anyPeers {
 		v, ok := p.(map[string]any)
@@ -165,12 +219,12 @@ func (tc *TrackerClient) sendHTTPAnnounceRequest() (*trackerResponse, error) {
 				return nil, err
 			}
 
-			peers = append(peers, udpPeer{
+			peers = append(peers, UdpPeer{
 				Ip:   netip.AddrFrom4([4]byte(buff.Bytes())),
 				Port: uint16(port),
 			})
 		} else {
-			// it should be a byte string as in udp
+			// if it's not a dict then it should be a byte string
 			v, ok := p.(string)
 			if !ok {
 				return nil, errors.New("Expected peer to either be dict or byte arr")
@@ -190,7 +244,7 @@ func (tc *TrackerClient) sendHTTPAnnounceRequest() (*trackerResponse, error) {
 				return nil, err
 			}
 
-			peers = append(peers, udpPeer{
+			peers = append(peers, UdpPeer{
 				Ip:   netip.AddrFrom4(ip),
 				Port: uint16(port),
 			})
@@ -198,10 +252,9 @@ func (tc *TrackerClient) sendHTTPAnnounceRequest() (*trackerResponse, error) {
 	}
 
 	return &trackerResponse{
-		FailureReason: failureReason,
-		Interval:      int32(interval),
-		Leechers:      int32(leechers),
-		Peers:         peers,
+		Interval: int32(interval),
+		Leechers: int32(leechers),
+		Peers:    peers,
 	}, nil
 }
 
@@ -216,6 +269,7 @@ func (tc *TrackerClient) sendUDPAnnounceRequest() (*trackerResponse, error) {
 		return nil, err
 	}
 	defer conn.Close()
+	log.Printf("Set up upd connection to %s\n", tc.announceUrl)
 
 	announce := new(bytes.Buffer)
 	var randomTransactionId int32 = rand.Int31()
@@ -241,7 +295,7 @@ func (tc *TrackerClient) sendUDPAnnounceRequest() (*trackerResponse, error) {
 	binary.Read(r, binary.BigEndian, &leechers)
 	binary.Read(r, binary.BigEndian, &seeders)
 
-	peers := make([]udpPeer, 0)
+	peers := make([]UdpPeer, 0)
 	for {
 		var (
 			ip   [4]byte
@@ -263,12 +317,13 @@ func (tc *TrackerClient) sendUDPAnnounceRequest() (*trackerResponse, error) {
 		}
 
 		// I'm not sure why but tracker always returns "numPeersWant" even if the tracker does not have
-		// that much so i will end up with port=0, ip=0.0.0.0 thus i'm ending reading as soon as i get this case
+		// that much so i will end up with port=0, ip=0.0.0.0 repating till "numPeersWant"
+		// thus i'm ending reading as soon as i get this case.
 		if port == 0 {
 			break
 		}
 
-		peers = append(peers, udpPeer{
+		peers = append(peers, UdpPeer{
 			Ip:   netip.AddrFrom4(ip),
 			Port: port,
 		})
@@ -331,6 +386,7 @@ func (tc *TrackerClient) setUpUDPConnectionId() error {
 		return err
 	}
 	defer conn.Close()
+	log.Printf("Set up upd connection to %s\n", tc.announceUrl)
 
 	connReq := new(bytes.Buffer)
 
@@ -346,6 +402,7 @@ func (tc *TrackerClient) setUpUDPConnectionId() error {
 	if err := binary.Write(connReq, binary.BigEndian, randomTransactionId); err != nil {
 		return err
 	}
+	log.Printf("Send UDP init conn packets to %s\n", tc.announceUrl)
 
 	if _, err := conn.Write(connReq.Bytes()); err != nil {
 		return err

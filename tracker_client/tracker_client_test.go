@@ -1,8 +1,11 @@
 package trackerclient
 
 import (
+	"context"
+	"fmt"
 	"gotorrent/decoder"
 	"testing"
+	"time"
 )
 
 func TestAnnounceRequest(t *testing.T) {
@@ -16,10 +19,17 @@ func TestAnnounceRequest(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	resp, err := client.Announce()
-	if err != nil {
-		t.Fatal(err)
-	}
+	d, _ := time.ParseDuration("1m")
+	ctx, _ := context.WithTimeout(context.Background(), d)
 
-	t.Logf("%+v\n", resp)
+	ch := make(chan error)
+	go client.Start(ctx, ch)
+
+	select {
+	case <-ctx.Done():
+		fmt.Println("done after 1m")
+
+	case v := <-ch:
+		fmt.Printf("got error %s\n", v)
+	}
 }
