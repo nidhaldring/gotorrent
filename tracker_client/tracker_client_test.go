@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-func TestAnnounceRequest(t *testing.T) {
+func TestStartRequest(t *testing.T) {
 	torrent, err := decoder.DecodeTorrentFile("../decoder/files/test.torrent")
 	if err != nil {
 		t.Fatal(err)
