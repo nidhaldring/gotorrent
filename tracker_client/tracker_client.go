@@ -272,6 +272,9 @@ func (tc *TrackerClient) sendUDPAnnounceRequest() (*announceResponse, error) {
 	defer conn.Close()
 	log.Printf("Set up upd connection to %s\n", tc.announceUrl)
 
+	d, _ := time.ParseDuration("1m")
+	conn.SetDeadline(time.Now().Add(d))
+
 	announce := new(bytes.Buffer)
 	var randomTransactionId int32 = rand.Int31()
 	tc.writeAnnounceRequest(announce, randomTransactionId)
@@ -281,7 +284,6 @@ func (tc *TrackerClient) sendUDPAnnounceRequest() (*announceResponse, error) {
 	}
 
 	resp := make([]byte, 20+tc.numPeersWant*peerStructureSize)
-	// @TODO: there must be a way to time this out or it will wait forever
 	if _, err := conn.Read(resp); err != nil {
 		return nil, err
 	}
