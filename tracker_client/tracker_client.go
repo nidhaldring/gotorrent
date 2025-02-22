@@ -85,7 +85,9 @@ func NewTrackerClient(torrentFile decoder.TorrentFile) (*TrackerClient, error) {
 	u, err := url.Parse(torrentFile.Announce)
 	if err != nil {
 		return nil, err
-	} else if strings.HasPrefix(u.Scheme, "http") && strings.HasPrefix(u.Scheme, "udp") {
+	}
+
+	if strings.HasPrefix(u.Scheme, "http") && strings.HasPrefix(u.Scheme, "udp") {
 		return nil, fmt.Errorf("Unsupported protofol for %s, we only support HTTP/UDP", u.Scheme)
 	}
 
@@ -235,11 +237,11 @@ func (tc *TrackerClient) sendHTTPAnnounceRequest() (*announceResponse, error) {
 				port uint16
 			)
 
-			if err := binary.Read(r, binary.BigEndian, &ip); err != nil {
+			if err := binary.Read(r, binary.NativeEndian, &ip); err != nil {
 				return nil, err
 			}
 
-			if err := binary.Read(r, binary.BigEndian, &port); err != nil {
+			if err := binary.Read(r, binary.NativeEndian, &port); err != nil {
 				return nil, err
 			}
 
@@ -288,11 +290,11 @@ func (tc *TrackerClient) sendUDPAnnounceRequest() (*announceResponse, error) {
 		action, transactionId, interval, leechers, seeders int32
 	)
 	r := bytes.NewBuffer(resp)
-	binary.Read(r, binary.BigEndian, &action)
-	binary.Read(r, binary.BigEndian, &transactionId)
-	binary.Read(r, binary.BigEndian, &interval)
-	binary.Read(r, binary.BigEndian, &leechers)
-	binary.Read(r, binary.BigEndian, &seeders)
+	binary.Read(r, binary.NativeEndian, &action)
+	binary.Read(r, binary.NativeEndian, &transactionId)
+	binary.Read(r, binary.NativeEndian, &interval)
+	binary.Read(r, binary.NativeEndian, &leechers)
+	binary.Read(r, binary.NativeEndian, &seeders)
 
 	peers := make([]UdpPeer, 0)
 	for {
@@ -301,14 +303,14 @@ func (tc *TrackerClient) sendUDPAnnounceRequest() (*announceResponse, error) {
 			port uint16
 		)
 
-		if err := binary.Read(r, binary.BigEndian, &ip); err != nil {
+		if err := binary.Read(r, binary.NativeEndian, &ip); err != nil {
 			if err == io.EOF {
 				break
 			}
 			return nil, err
 		}
 
-		if err := binary.Read(r, binary.BigEndian, &port); err != nil {
+		if err := binary.Read(r, binary.NativeEndian, &port); err != nil {
 			if err == io.EOF {
 				break
 			}
@@ -337,7 +339,7 @@ func (tc *TrackerClient) sendUDPAnnounceRequest() (*announceResponse, error) {
 
 func (tc *TrackerClient) writeAnnounceRequest(req *bytes.Buffer, transactionId int32) error {
 	write := func(buff *bytes.Buffer, data any) error {
-		if err := binary.Write(buff, binary.BigEndian, data); err != nil {
+		if err := binary.Write(buff, binary.NativeEndian, data); err != nil {
 			return err
 		}
 		return nil
@@ -389,16 +391,16 @@ func (tc *TrackerClient) setUpUDPConnectionId() error {
 
 	connReq := new(bytes.Buffer)
 
-	if err = binary.Write(connReq, binary.BigEndian, udpTrackerProtocolMagicNumber); err != nil {
+	if err = binary.Write(connReq, binary.NativeEndian, udpTrackerProtocolMagicNumber); err != nil {
 		return err
 	}
 
-	if err := binary.Write(connReq, binary.BigEndian, udpConnect); err != nil {
+	if err := binary.Write(connReq, binary.NativeEndian, udpConnect); err != nil {
 		return err
 	}
 
 	var randomTransactionId int32 = rand.Int31()
-	if err := binary.Write(connReq, binary.BigEndian, randomTransactionId); err != nil {
+	if err := binary.Write(connReq, binary.NativeEndian, randomTransactionId); err != nil {
 		return err
 	}
 	log.Printf("Send UDP init conn packets to %s\n", tc.announceUrl)
@@ -420,9 +422,9 @@ func (tc *TrackerClient) setUpUDPConnectionId() error {
 	)
 
 	r := bytes.NewBuffer(resp)
-	binary.Read(r, binary.BigEndian, &action)
-	binary.Read(r, binary.BigEndian, &transactionId)
-	binary.Read(r, binary.BigEndian, &connectionId)
+	binary.Read(r, binary.NativeEndian, &action)
+	binary.Read(r, binary.NativeEndian, &transactionId)
+	binary.Read(r, binary.NativeEndian, &connectionId)
 
 	if transactionId != randomTransactionId {
 		return fmt.Errorf("Received different transaction_id, sent %d and got %d", randomTransactionId, transactionId)
